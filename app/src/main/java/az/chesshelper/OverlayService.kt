@@ -481,6 +481,7 @@ class OverlayService : Service() {
         autoJob = null
         val restoreHeight = autoPanelHeightBeforeRun
         autoPanelHeightBeforeRun = null
+        bubble?.text = "♟"
         if (wasRunning && restoreHeight != null && !destroyed) {
             try {
                 panelLayoutParams?.let { params ->
@@ -536,7 +537,7 @@ class OverlayService : Service() {
                 }
             }
         }
-        bubble?.alpha = 1f
+        bubble?.apply { text = "■"; alpha = 1f }
         say("Avtomatik tanıma başladıldı · dairəvi düymə ilə dayandır")
         autoJob = scope.launch {
             try {
