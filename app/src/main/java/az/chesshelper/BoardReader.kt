@@ -642,7 +642,23 @@ object BoardReader {
                 }
             }
         }
-        if (wn == 0 || bn == 0 || PIECES.any { map[it].isNullOrEmpty() }) return null
+        if (wn == 0 || bn == 0) return null
+
+        // A queen (or another unique piece) may already have moved from its home square
+        // during the first move or two. Its opposite-colour counterpart still provides
+        // the same silhouette geometry; piece colour is classified independently by fill.
+        // Reuse that geometry rather than rejecting an otherwise valid calibration.
+        for (piece in PIECES) {
+            if (map[piece].isNullOrEmpty()) {
+                val counterpart = if (piece.isUpperCase()) piece.lowercaseChar() else piece.uppercaseChar()
+                val fallback = map[counterpart]
+                if (!fallback.isNullOrEmpty()) {
+                    map[piece] = ArrayList(fallback)
+                }
+            }
+        }
+        if (PIECES.any { map[it].isNullOrEmpty() }) return null
+
         val wm = wl / wn
         val bm = bl / bn
         return CalibResult(Templates(map, (wm + bm) / 2f, wm - bm), whiteBottom)
