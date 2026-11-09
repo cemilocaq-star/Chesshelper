@@ -889,6 +889,8 @@ class OverlayService : Service() {
                 eng.configureStrength(requestedElo, useMaximumStrength)
                 eng.best(fen, requestedMoveTimeMs)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             null
         } ?: run {
