@@ -28,7 +28,7 @@ Seçilmiş parametrlər cihazda yadda saxlanılır. ELO parametri mühərrikin m
 ## Tanınma və vəziyyət məlumatları
 
 - Taxta kəşfi və fiqur tanınması mövcud `BoardReader` alqoritmi ilə aparılır.
-- Taxtanın istiqaməti ilk etibarlı kalibrasiyadan sonra sessiya ərzində sabit saxlanılır.
+- Taxtanın istiqaməti ilk etibarlı kalibrasiyadan sonra sessiya ərzində sabit saxlanılır. Hər yeni servis/oyun sessiyasında başlanğıc mövqeyi görünəndə yadda qalmış fiqur şablonları cari fiqur dəsti və mövzuya uyğun yenidən öyrədilir; beləliklə əvvəlki Chess.com mövzusunun şablonları yeni oyuna kor-koranə tətbiq edilmir.
 - Tanınma keyfiyyəti göstəricisi yalnız fiqur kimi tanınmış xanalar arasındakı güclü təsnifat payını göstərir. Bu, ehtimal və ya dəqiqlik zəmanəti deyil.
 - Eyni mövqenin təkrar analiz edilməməsi üçün fiqur düzülüşü, növbə, rokirovka hüquqları və en passant vəziyyəti birlikdə müqayisə olunur.
 - Roki­rovka hüquqları yalnız sessiya başlanğıc mövqedə müşahidə ediləndə tam məlum sayılır. Oyunun ortasında qoşulanda sistem naməlum tarixi hüquqları uydurmur və rokirovkanı söndürür.
@@ -73,7 +73,7 @@ APK yalnız workflow uğurla bitdikdən sonra Actions → həmin run → Artifac
 
 - Fiqur şablonları ən yaxşı halda oyunun başlanğıc mövqeyində öyrədilir. Oyunun ortasında ilk dəfə açıldıqda şablon çatışmazlığı ola bilər.
 - Taxtada animasiya, yarımçıq sürüşdürülən fiqur, əl ilə çəkilmiş ox və ya pəncərə üst-üstə düşməsi tanınmanı poza bilər.
-- Son gediş işarəsi görünmürsə növbə əl ilə seçilməlidir.
+- Son gediş işarəsi görünmürsə növbə əl ilə seçilməlidir; dəqiq başlanğıc FEN-i tanındıqda ilk gediş üçün Ağ tərəfin növbəsi avtomatik götürülür.
 - Oyunun ortasında qoşulanda rokirovka hüquqları məlum olmadığından mühərrik rokirovka təklif etməyəcək.
 - Sintetik tanınma simulyasiyası real cihaz və real şahmat saytlarının bütün mövzularını/fiqur dəstlərini əhatə etmir. Real cihaz sınağı ayrıca tələb olunur.
 - CI build-in keçməsi overlay-in hər Android cihazında, ekran miqyasında və oyunun hər mövzusunda düzgün işlədiyini sübut etmir.
