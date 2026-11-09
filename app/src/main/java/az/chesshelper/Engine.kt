@@ -13,6 +13,8 @@ class Engine(ctx: Context) : AutoCloseable {
     private val proc: Process
     private val out: BufferedWriter
     private val lines = LinkedBlockingQueue<String>()
+    private val outputLock = Any()
+    @Volatile private var searching = false
     private val closed = AtomicBoolean(false)
     private val stopRequested = AtomicBoolean(false)
     @Volatile private var readerFailure: Throwable? = null
@@ -45,9 +47,6 @@ class Engine(ctx: Context) : AutoCloseable {
             throw e
         }
     }
-
-    private val outputLock = Any()
-    @Volatile private var searching = false
 
     private fun send(cmd: String) {
         synchronized(outputLock) {
