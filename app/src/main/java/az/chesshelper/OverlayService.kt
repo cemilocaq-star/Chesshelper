@@ -81,6 +81,10 @@ class OverlayService : Service() {
     private var lastRecognitionMs = 0L
     private var lastEngineMs = 0L
     private var lastConfidence = 0
+    private val recognitionSamples = ArrayList<Long>()
+    private val engineSamples = ArrayList<Long>()
+    private var recognitionFailures = 0
+    private var engineFailures = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -91,6 +95,7 @@ class OverlayService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (projection != null) return START_NOT_STICKY
         startAsForeground()
         try {
             setup(intent.getIntExtra("code", 0), data)
@@ -182,9 +187,19 @@ class OverlayService : Service() {
         scope.launch(Dispatchers.IO) {
             try {
                 val created = Engine(this@OverlayService)
-                withContext(Dispatchers.Main) {
-                    if (destroyed) created.close() else engine = created
+                var transferred = false
+                try {
+                    withContext(Dispatchers.Main) {
+                        if (!destroyed) {
+                            engine = created
+                            transferred = true
+                        }
+                    }
+                } finally {
+                    if (!transferred) created.close()
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     if (!destroyed) say("Motor xətası: ${e.message}")
@@ -307,8 +322,8 @@ class OverlayService : Service() {
             }
         }
         p.addView(maxButton)
-        btn("Tarixçə (son 100)") { showHistory() }
-        btn("PGN ixrac et") { shareExport(SessionStore.toPgn(this), "application/x-chess-pgn") }
+        btn("Analiz tarixçəsi (son 100)") { showHistory() }
+        btn("PGN tövsiyə ixracı") { shareExport(SessionStore.toPgn(this), "application/x-chess-pgn") }
         btn("UCI ixrac et") { shareExport(SessionStore.toUci(this), "text/plain") }
         btn("Performans") { showPerformance() }
         btn("Mövzu: dəyiş") { cycleTheme(p) }
@@ -456,6 +471,14 @@ class OverlayService : Service() {
         status?.text = s
     }
 
+    private fun addMetric(samples: ArrayList<Long>, value: Long) {
+        samples.add(value)
+        if (samples.size > 100) samples.removeAt(0)
+    }
+
+    private fun averageMetric(samples: List<Long>): Long =
+        if (samples.isEmpty()) 0L else samples.average().toLong()
+
     private fun setSideButtonLabel(button: Button) {
         button.text = "Növbə: ${when (sideOverride) { 'w' -> "Ağ"; 'b' -> "Qara"; else -> "Avtomatik" }}"
     }
@@ -503,8 +526,8 @@ class OverlayService : Service() {
 
     private fun showHistory() {
         val items = SessionStore.read(this).takeLast(20).asReversed()
-        val message = if (items.isEmpty()) "Hələ tarixçə yoxdur" else items.mapIndexed { i, item ->
-            "${i + 1}. ${item.uci} · ${item.confidence}% · ${item.engineMs} ms"
+        val message = if (items.isEmpty()) "Hələ analiz tarixçəsi yoxdur" else items.mapIndexed { i, item ->
+            "${i + 1}. ${item.uci} · xana əhatəsi ${item.confidence}% · ${item.engineMs} ms"
         }.joinToString("\n")
         AlertDialog.Builder(this).setTitle("Son gedişlər").setMessage(message)
             .setPositiveButton("Bağla", null).show()
@@ -512,7 +535,17 @@ class OverlayService : Service() {
 
     private fun showPerformance() {
         AlertDialog.Builder(this).setTitle("Performance Monitor")
-            .setMessage("Tanınma: ${lastRecognitionMs} ms\nStockfish: ${lastEngineMs} ms\nConfidence: ${lastConfidence}%\nTarixçə: ${SessionStore.read(this).size}/100\nAnaliz: ${analysisTimeSeconds} s\nMühərrik: ${if (maxEngineStrength) "Maksimum" else targetElo}")
+            .setMessage(
+                "Son tanınma: ${lastRecognitionMs} ms\n" +
+                    "Orta tanınma (son ${recognitionSamples.size}): ${averageMetric(recognitionSamples)} ms\n" +
+                    "Son Stockfish: ${lastEngineMs} ms\n" +
+                    "Orta Stockfish (son ${engineSamples.size}): ${averageMetric(engineSamples)} ms\n" +
+                    "Güclü xana əhatəsi (heuristik): ${lastConfidence}%\n" +
+                    "Tanınma xətaları: $recognitionFailures · Mühərrik xətaları: $engineFailures\n" +
+                    "Analiz tarixçəsi: ${SessionStore.read(this).size}/100\n" +
+                    "Analiz müddəti: ${analysisTimeSeconds} s\n" +
+                    "Mühərrik: ${if (maxEngineStrength) "Maksimum" else targetElo}"
+            )
             .setPositiveButton("Bağla", null).show()
     }
 
@@ -561,6 +594,7 @@ class OverlayService : Service() {
                 delay(25)
                 waited += 25
             }
+            if (lastFrameAt < start) return null
             return synchronized(frameLock) {
                 val frame = latestFrame
                 if (frame == null || frame.isRecycled) null
@@ -592,9 +626,20 @@ class OverlayService : Service() {
     private suspend fun calibrate() {
         say("Şablon yenilənir…")
         val bmp = capture() ?: return say("Ekran tutulmadı")
-        val found = withContext(Dispatchers.Default) { BoardReader.findBoard(bmp) }
-            ?: return say("Taxta tapılmadı")
-        val scan = withContext(Dispatchers.Default) { BoardReader.scan(bmp, stable(found)) }
+        val found = try {
+            withContext(Dispatchers.Default) { BoardReader.findBoard(bmp) }
+        } catch (e: Exception) {
+            if (!bmp.isRecycled) bmp.recycle()
+            throw e
+        } ?: run {
+            if (!bmp.isRecycled) bmp.recycle()
+            return say("Taxta tapılmadı")
+        }
+        val scan = try {
+            withContext(Dispatchers.Default) { BoardReader.scan(bmp, stable(found)) }
+        } finally {
+            if (!bmp.isRecycled) bmp.recycle()
+        }
         val r = withContext(Dispatchers.Default) { BoardReader.calibrate(scan) }
             ?: return say("Yalnız oyunun əvvəlində (ilk 1-2 gediş) yenilənir")
         applyCalibration(r)
@@ -611,13 +656,24 @@ class OverlayService : Service() {
             say("Ekran tutulmadı")
             return null
         }
-        val found = withContext(Dispatchers.Default) { BoardReader.findBoard(bmp) }
+        val found = try {
+            withContext(Dispatchers.Default) { BoardReader.findBoard(bmp) }
+        } catch (e: Exception) {
+            if (!bmp.isRecycled) bmp.recycle()
+            throw e
+        }
         if (found == null) {
+            if (!bmp.isRecycled) bmp.recycle()
+            recognitionFailures++
             say("Taxta tapılmadı")
             return null
         }
         val board = stable(found)
-        val scan = withContext(Dispatchers.Default) { BoardReader.scan(bmp, board) }
+        val scan = try {
+            withContext(Dispatchers.Default) { BoardReader.scan(bmp, board) }
+        } finally {
+            if (!bmp.isRecycled) bmp.recycle()
+        }
 
         // Learn templates automatically only once; do not overwrite them on every early move.
         if (templates == null) {
@@ -640,18 +696,21 @@ class OverlayService : Service() {
         // Castling rights are known only when this session observed the initial position.
         // Thereafter they can only be removed when the original king/rook leaves its home square.
         val previous = previousPlacement
-        if (BoardReader.isInitialPosition(reading.placement)) {
-            castling = "KQkq"
-            castlingKnown = true
-        } else if (previous != null && castlingKnown) {
+        if (previous == null) {
+            if (BoardReader.isInitialPosition(reading.placement)) {
+                castling = "KQkq"
+                castlingKnown = true
+            } else {
+                castling = "-"
+                castlingKnown = false
+            }
+        } else if (castlingKnown) {
             castling = BoardReader.updateCastling(castling, previous, reading.placement)
-        } else if (previous == null) {
-            castling = "-"
-            castlingKnown = false
         }
         previousPlacement = reading.placement
         lastPieces = reading.placement.count { it.isLetter() }
         lastRecognitionMs = SystemClock.elapsedRealtime() - recognitionStarted
+        addMetric(recognitionSamples, lastRecognitionMs)
         lastConfidence = (((64 - reading.weak.size).coerceAtLeast(0) / 64f) * 100f).toInt()
         return Snap(board, reading, lastRecognitionMs)
     }
@@ -698,22 +757,31 @@ class OverlayService : Service() {
         }
 
         val engineStarted = SystemClock.elapsedRealtime()
-        val move = withContext(Dispatchers.IO) {
-            try {
+        val move = try {
+            withContext(Dispatchers.IO) {
                 eng.configureStrength(targetElo, maxEngineStrength)
                 eng.best(fen, analysisTimeSeconds * 1000)
-            } catch (e: Exception) {
-                null
             }
-        } ?: return say("Gediş tapılmadı")
+        } catch (_: Exception) {
+            null
+        } ?: run {
+            engineFailures++
+            return say("Mühərrik gediş qaytarmadı")
+        }
 
+        val san = ChessNotation.sanFor(fen, move)
+        if (san == null) {
+            engineFailures++
+            return say("Mühərrikin qaytardığı gediş bu FEN üçün qanuni deyil; nəticə saxlanmadı")
+        }
         lastEngineMs = SystemClock.elapsedRealtime() - engineStarted
+        addMetric(engineSamples, lastEngineMs)
         lastAnalyzedPositionKey = positionKey
         SessionStore.append(this, MoveRecord(fen, move, System.currentTimeMillis(), lastConfidence, snap.recognitionMs, lastEngineMs))
         val from = move.substring(0, 2)
         val to = move.substring(2, 4)
         val n = reading.weak.size
-        say(if (n == 0) "$from → $to" else "$from → $to ($n xana şübhəli, Yoxla bas)")
+        say(if (n == 0) "$from → $to · $san" else "$from → $to · $san ($n xana şübhəli, Yoxla bas)")
         val (x1, y1) = BoardReader.center(board, from, whiteBottom)
         val (x2, y2) = BoardReader.center(board, to, whiteBottom)
         // piyada son sıraya çatırsa (məs. e7e8q) yeni fiqur göstərilir
@@ -732,8 +800,10 @@ class OverlayService : Service() {
         } catch (_: Exception) {
         }
         display?.release()
+        reader?.setOnImageAvailableListener(null, null)
         reader?.close()
         frameThread?.quitSafely()
+        try { frameThread?.join(500) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
         frameThread = null
         synchronized(frameLock) {
             latestFrame?.recycle()
