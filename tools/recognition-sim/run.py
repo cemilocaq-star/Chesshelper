@@ -2,6 +2,7 @@ import sys, random
 sys.path.insert(0, '.')
 import numpy as np
 from render import *
+import recog as recog_module
 from recog import *
 
 BOARD = (0, 520, 1080)
@@ -58,7 +59,7 @@ if __name__ == "__main__":
         for font in ("dejavu", "freeserif"):
             result = trial(th, font, font, seed=1)
             if result is None:
-                print(th, font, "CALIBRATION FAILED:", LAST_CALIBRATION_FAILURE)
+                print(th, font, "CALIBRATION FAILED:", recog_module.LAST_CALIBRATION_FAILURE)
                 failures.append((th, font, "calibration"))
                 continue
             ok, tot, rows = result
