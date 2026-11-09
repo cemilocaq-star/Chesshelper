@@ -690,12 +690,18 @@ class OverlayService : Service() {
                 }
             }
         } finally {
-            if (params != null && previousPanelHeight != null) {
-                params.height = previousPanelHeight
-                panel?.let { wm.updateViewLayout(it, params) }
+            if (!destroyed) {
+                try {
+                    if (params != null && previousPanelHeight != null) {
+                        params.height = previousPanelHeight
+                        panel?.let { wm.updateViewLayout(it, params) }
+                    }
+                } catch (_: Exception) {
+                    // The service may be closing while this capture is cancelled.
+                }
+                panel?.visibility = previousPanelVisibility ?: View.VISIBLE
+                bubble?.visibility = previousBubbleVisibility ?: View.VISIBLE
             }
-            panel?.visibility = previousPanelVisibility ?: View.VISIBLE
-            bubble?.visibility = previousBubbleVisibility ?: View.VISIBLE
         }
     }
 
