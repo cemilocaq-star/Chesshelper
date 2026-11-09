@@ -52,45 +52,171 @@ class MainActivity : Activity() {
 
     private fun showSettings() {
         val prefs = getSharedPreferences("chess", MODE_PRIVATE)
-        val items = arrayOf("Mühərrik ELO-su", "Analiz müddəti", "Mövzu")
+        val dp = resources.displayMetrics.density
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((20 * dp).toInt(), (8 * dp).toInt(), (20 * dp).toInt(), (8 * dp).toInt())
+        }
+        val summary = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, 0, 0, (12 * dp).toInt())
+        }
+        fun refreshSummary() {
+            val max = prefs.getBoolean("max_engine_strength", false)
+            val elo = if (max) "Maksimum" else "${prefs.getInt("target_elo", 2000)} ELO"
+            val mode = when (prefs.getString("thinking_mode", "balanced")) {
+                "fast" -> "Sürətli"
+                "deep" -> "Dərin"
+                "custom" -> "Xüsusi"
+                else -> "Balanslı"
+            }
+            val seconds = prefs.getInt("analysis_time_seconds", 3)
+            val theme = when (prefs.getString("theme", "dark")) {
+                "midnight" -> "Midnight Blue"
+                "amoled" -> "AMOLED"
+                else -> "Dark"
+            }
+            summary.text = "Cari konfiqurasiya\nMühərrik: $elo\nDüşünmə rejimi: $mode (${seconds}s)\nMövzu: $theme"
+        }
+        fun addSettingButton(label: String, action: () -> Unit) {
+            content.addView(Button(this).apply {
+                text = label
+                isAllCaps = false
+                setOnClickListener { action(); refreshSummary() }
+            })
+        }
+        content.addView(summary)
+        addSettingButton("Mühərrik ELO-sunu seç") {
+            val values = intArrayOf(1320, 1500, 1800, 2000, 2200, 2500, 2800, 3000)
+            val labels = values.map { "$it ELO" }.toTypedArray() + "Maksimum güc" + "Xüsusi ELO daxil et"
+            AlertDialog.Builder(this)
+                .setTitle("Mühərrik gücü")
+                .setItems(labels) { _, selected ->
+                    when {
+                        selected < values.size -> prefs.edit()
+                            .putInt("target_elo", values[selected])
+                            .putBoolean("max_engine_strength", false)
+                            .apply()
+                        selected == values.size -> prefs.edit()
+                            .putBoolean("max_engine_strength", true)
+                            .apply()
+                        else -> showNumberDialog(
+                            title = "Xüsusi ELO",
+                            hint = "1320–3000",
+                            initial = prefs.getInt("target_elo", 2000).toString(),
+                            min = 1320,
+                            max = 3000
+                        ) { value ->
+                            prefs.edit().putInt("target_elo", value)
+                                .putBoolean("max_engine_strength", false).apply()
+                            refreshSummary()
+                        }
+                    }
+                    refreshSummary()
+                }.show()
+        }
+        addSettingButton("Düşünmə rejimi") {
+            val modes = arrayOf("Sürətli · 1 saniyə", "Balanslı · 3 saniyə", "Dərin · 10 saniyə", "Xüsusi")
+            AlertDialog.Builder(this)
+                .setTitle("Analiz düşünmə rejimi")
+                .setItems(modes) { _, selected ->
+                    when (selected) {
+                        0 -> saveThinkingMode("fast", 1)
+                        1 -> saveThinkingMode("balanced", 3)
+                        2 -> saveThinkingMode("deep", 10)
+                        3 -> showCustomThinkingDialog(prefs.getInt("analysis_time_seconds", 3))
+                    }
+                    refreshSummary()
+                }.show()
+        }
+        addSettingButton("Xüsusi rejimi tənzimlə") {
+            showCustomThinkingDialog(prefs.getInt("analysis_time_seconds", 3))
+        }
+        addSettingButton("Mövzu") {
+            val themes = arrayOf("Dark", "Midnight Blue", "AMOLED")
+            val keys = arrayOf("dark", "midnight", "amoled")
+            AlertDialog.Builder(this)
+                .setTitle("Mövzu")
+                .setItems(themes) { _, selected ->
+                    prefs.edit().putString("theme", keys[selected]).apply()
+                    refreshSummary()
+                }.show()
+        }
+        refreshSummary()
         AlertDialog.Builder(this)
-            .setTitle("Chess Helper parametrləri")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> {
-                        val values = intArrayOf(1320, 1500, 1800, 2000, 2200, 2500, 2800, 3000)
-                        val labels = values.map { "$it ELO" }.toTypedArray() + "Maksimum güc"
-                        AlertDialog.Builder(this)
-                            .setTitle("Mühərrik gücü")
-                            .setItems(labels) { _, selected ->
-                                val edit = prefs.edit()
-                                if (selected == values.size) {
-                                    edit.putBoolean("max_engine_strength", true)
-                                } else {
-                                    edit.putInt("target_elo", values[selected])
-                                        .putBoolean("max_engine_strength", false)
-                                }
-                                edit.apply()
-                            }.show()
-                    }
-                    1 -> {
-                        val values = intArrayOf(1, 3, 5, 10, 15, 20, 30)
-                        AlertDialog.Builder(this)
-                            .setTitle("Analiz müddəti")
-                            .setItems(values.map { "$it saniyə" }.toTypedArray()) { _, selected ->
-                                prefs.edit().putInt("analysis_time_seconds", values[selected]).apply()
-                            }.show()
-                    }
-                    2 -> {
-                        val themes = arrayOf("Dark", "Midnight Blue", "AMOLED")
-                        val keys = arrayOf("dark", "midnight", "amoled")
-                        AlertDialog.Builder(this)
-                            .setTitle("Mövzu")
-                            .setItems(themes) { _, selected ->
-                                prefs.edit().putString("theme", keys[selected]).apply()
-                            }.show()
-                    }
+            .setTitle("Chess Helper · Parametrlər")
+            .setView(content)
+            .setPositiveButton("Bağla", null)
+            .show()
+    }
+
+    private fun saveThinkingMode(mode: String, seconds: Int) {
+        getSharedPreferences("chess", MODE_PRIVATE).edit()
+            .putString("thinking_mode", mode)
+            .putInt("analysis_time_seconds", seconds.coerceIn(1, 30))
+            .apply()
+    }
+
+    private fun showCustomThinkingDialog(initialSeconds: Int) {
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            hint = "1–30 saniyə"
+            setText(initialSeconds.coerceIn(1, 30).toString())
+            setSelection(text.length)
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(TextView(this@MainActivity).apply {
+                text = "Stockfish-in hər mövqe üçün düşünmə vaxtını seç (1–30 saniyə)."
+                textSize = 14f
+            })
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Xüsusi düşünmə rejimi")
+            .setView(container)
+            .setNegativeButton("Ləğv et", null)
+            .setPositiveButton("Yadda saxla") { _, _ ->
+                val seconds = input.text.toString().toIntOrNull()
+                if (seconds == null || seconds !in 1..30) {
+                    android.widget.Toast.makeText(this, "1–30 saniyə arası dəyər daxil et", android.widget.Toast.LENGTH_LONG).show()
+                } else {
+                    saveThinkingMode("custom", seconds)
+                    android.widget.Toast.makeText(this, "Xüsusi rejim yadda saxlanıldı: ${seconds}s", android.widget.Toast.LENGTH_SHORT).show()
                 }
+            }.show()
+    }
+
+    private fun showNumberDialog(
+        title: String,
+        hint: String,
+        initial: String,
+        min: Int,
+        max: Int,
+        onSaved: (Int) -> Unit
+    ) {
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            this.hint = hint
+            setText(initial)
+            setSelection(text.length)
+        }
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        val wrapper = LinearLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(wrapper)
+            .setNegativeButton("Ləğv et", null)
+            .setPositiveButton("Yadda saxla") { _, _ ->
+                val value = input.text.toString().toIntOrNull()
+                if (value == null || value !in min..max) {
+                    android.widget.Toast.makeText(this, "$min–$max arası dəyər daxil et", android.widget.Toast.LENGTH_LONG).show()
+                } else onSaved(value)
             }.show()
     }
 
