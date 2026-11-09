@@ -67,3 +67,14 @@ Yerli quraşdırma üçün Stockfish-in arm64 binarisini `app/src/main/jniLibs/a
 ## Vacib xəbərdarlıq
 
 Bu alət **bota qarşı oyun, öz oyunlarını təhlil etmək və qarşı tərəfin xəbəri olduğu dost oyunları** üçündür. chess.com-un fair-play qaydaları motor köməyini rated və unrated bütün oyunlarda qadağan edir. İnsanlara qarşı gizli istifadə hesabın bağlanmasına səbəb ola bilər.
+
+
+## Expanded overlay features
+
+The analysis overlay supports automatic repeated screen reads after **Avtomatik başlat**. A changed position must be recognized in two consecutive captures before a new engine search is started. Use **Dayandır** to stop the loop. The draggable 48dp chess bubble toggles the full panel.
+
+Analysis presets are Fast (1 second), Normal (3 seconds), Deep (10 seconds), and Custom (1–30 seconds). Stockfish strength can be limited to 1320–3000 ELO in 20-point steps or set to unrestricted maximum strength.
+
+The overlay also includes Dark, Midnight Blue, and AMOLED panel themes; a persistent latest-100 position history; a performance panel; UCI text export; and an annotated PGN-compatible export. Recognition confidence is currently a heuristic based on the proportion of squares not flagged as weak by the recognizer, not a calibrated probability. The PGN-compatible export stores UCI/FEN records as PGN comments; it does not claim to generate SAN move notation.
+
+Board detection, template calibration, board inspection, and weak-square highlighting use the existing `BoardReader` implementation.
