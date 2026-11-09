@@ -736,7 +736,13 @@ class OverlayService : Service() {
         say(if (r.whiteBottom) "Hazır: ağ aşağıda" else "Hazır: qara aşağıda")
     }
 
-    private class Snap(val board: BoardRect, val reading: Reading, val recognitionMs: Long)
+    private class Snap(
+        val board: BoardRect,
+        val reading: Reading,
+        val recognitionMs: Long,
+        val frameWidth: Int,
+        val frameHeight: Int
+    )
 
     /** Ekranı tutur, taxtanı tapır və oxuyur. Oyunun əvvəlindəyiksə şablonlar avtomatik öyrənilir. */
     private suspend fun snapshot(): Snap? {
@@ -747,6 +753,8 @@ class OverlayService : Service() {
             say("Ekran tutulmadı")
             return null
         }
+        val frameWidth = bmp.width
+        val frameHeight = bmp.height
         val found = try {
             withContext(Dispatchers.Default) { BoardReader.findBoard(bmp) }
         } catch (e: Exception) {
@@ -811,16 +819,24 @@ class OverlayService : Service() {
         lastRecognitionMs = SystemClock.elapsedRealtime() - recognitionStarted
         addMetric(recognitionSamples, lastRecognitionMs)
         lastPieceCoverage = if (reading.occupiedCount == 0) 0 else (((reading.occupiedCount - reading.weak.size).coerceAtLeast(0) / reading.occupiedCount.toFloat()) * 100f).toInt()
-        return Snap(board, reading, lastRecognitionMs)
+        return Snap(board, reading, lastRecognitionMs, frameWidth, frameHeight)
     }
 
     /** Oxunmuş taxtanı ekranın üstündə göstərir ki, tanımanın düzgünlüyü yoxlanılsın. */
     private suspend fun inspect() {
         say("Yoxlayıram…")
         val snap = snapshot() ?: return
-        arrow?.showBoard(snap.board, snap.reading.screen, snap.reading.weak)
+        arrow?.showBoard(
+            snap.board, snap.reading.screen, snap.reading.weak,
+            snap.frameWidth, snap.frameHeight
+        )
         val n = snap.reading.weak.size
-        say(if (n == 0) "Hamısı oxundu" else "$n xana şübhəlidir (qırmızı çərçivə)")
+        say(
+            "Taxta: x=${snap.board.x}, y=${snap.board.y}, " +
+                "${snap.board.size}×${snap.board.size}px · " +
+                "${snap.frameWidth}×${snap.frameHeight}px ekran · " +
+                "${snap.reading.occupiedCount} fiqur · $n şübhəli xana"
+        )
     }
 
     private suspend fun analyze() = analyzeOnce()
@@ -899,7 +915,10 @@ class OverlayService : Service() {
         val (x2, y2) = BoardReader.center(board, to, whiteBottom)
         // piyada son sıraya çatırsa (məs. e7e8q) yeni fiqur göstərilir
         val piece = if (move.length >= 5) move[4] else BoardReader.pieceAt(fen, from) ?: 'p'
-        arrow?.show(x1, y1, x2, y2, piece, board.size / 8f)
+        arrow?.show(
+            x1, y1, x2, y2, piece, board.size / 8f,
+            snap.frameWidth, snap.frameHeight
+        )
     }
 
     override fun onDestroy() {
