@@ -96,8 +96,9 @@ class OverlayService : Service() {
     private var engineFailures = 0
     private val settingsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
         when (key) {
-            "analysis_time_seconds" -> analysisTimeSeconds =
-                prefs.getInt("analysis_time_seconds", 3).coerceIn(1, 30)
+            "analysis_time_ms", "analysis_time_seconds" -> analysisTimeSeconds =
+                (prefs.getInt("analysis_time_ms", prefs.getInt("analysis_time_seconds", 3) * 1000))
+                    .coerceIn(500, 30_000)
             "target_elo" -> targetElo =
                 prefs.getInt("target_elo", 2000).coerceIn(1320, 3000)
             "max_engine_strength" -> maxEngineStrength =
@@ -200,7 +201,10 @@ class OverlayService : Service() {
         // Manual side selection is deliberately session-local and one-shot.
         sideOverride = null
 
-        analysisTimeSeconds = getSharedPreferences("chess", MODE_PRIVATE).getInt("analysis_time_seconds", 3).coerceIn(1, 30)
+        val settingsPrefs = getSharedPreferences("chess", MODE_PRIVATE)
+        analysisTimeSeconds = settingsPrefs.getInt(
+            "analysis_time_ms", settingsPrefs.getInt("analysis_time_seconds", 3) * 1000
+        ).coerceIn(500, 30_000)
         targetElo = getSharedPreferences("chess", MODE_PRIVATE).getInt("target_elo", 2000).coerceIn(1320, 3000)
         maxEngineStrength = getSharedPreferences("chess", MODE_PRIVATE).getBoolean("max_engine_strength", false)
         buildUi()
@@ -484,12 +488,13 @@ class OverlayService : Service() {
     }
 
     private fun setAnalysisTime(seconds: Int, button: Button) {
-        analysisTimeSeconds = seconds.coerceIn(1, 30)
+        analysisTimeSeconds = seconds.coerceIn(500, 30_000)
         getSharedPreferences("chess", MODE_PRIVATE).edit()
-            .putInt("analysis_time_seconds", analysisTimeSeconds)
+            .putInt("analysis_time_ms", analysisTimeSeconds)
+            .putInt("analysis_time_seconds", (analysisTimeSeconds / 1000f).toInt().coerceAtLeast(1))
             .apply()
-        button.text = "Təhlil vaxtı: ${analysisTimeSeconds}s"
-        say("Təhlil müddəti: ${analysisTimeSeconds} saniyə")
+        button.text = "Təhlil vaxtı: ${analysisTimeSeconds / 1000f}s"
+        say("Təhlil müddəti: ${analysisTimeSeconds / 1000f} saniyə")
     }
 
     private fun say(s: String) {
@@ -896,7 +901,7 @@ class OverlayService : Service() {
         // Snapshot UI settings before crossing to the IO dispatcher.
         val requestedElo = targetElo
         val useMaximumStrength = maxEngineStrength
-        val requestedMoveTimeMs = analysisTimeSeconds * 1000
+        val requestedMoveTimeMs = analysisTimeSeconds
         val engineStarted = SystemClock.elapsedRealtime()
         val move = try {
             withContext(Dispatchers.IO) {
