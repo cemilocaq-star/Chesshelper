@@ -929,32 +929,24 @@ class OverlayService : Service() {
             null
         } ?: run {
             engineFailures++
-            // Do not retry a failed/empty engine result every 900 ms. Repeated retries
-            // were causing repeated screen captures (and the panel hide/show flicker).
-            if (autoRunning) {
-                autoRunning = false
-                autoGeneration++
-                autoJob = null
-                engine?.stopSearch()
-                say(
-                    "Gediş tapılmadı — avtomatik analiz dayandırıldı. " +
-                        (engineFailureReason ?: "Stockfish mövqe üçün gediş qaytarmadı") +
-                        ". Taxtanı və FEN-i Yoxla düyməsi ilə yoxla."
-                )
+            val reason = engineFailureReason
+            val message = if (reason != null) {
+                "Stockfish xətası: $reason. FEN: $fen"
             } else {
-                say(
-                    "Gediş tapılmadı: " +
-                        (engineFailureReason ?: "Stockfish mövqe üçün gediş qaytarmadı") +
-                        ". Taxtanı və FEN-i yoxla."
-                )
+                "Stockfish gediş qaytarmadı (oyun bitmiş ola bilər). FEN: $fen"
             }
+            if (autoRunning) stopAutomaticAnalysis("Avtomatik analiz dayandırıldı. $message")
+            else say(message)
             return
         }
 
         val san = ChessNotation.sanFor(fen, move)
         if (san == null) {
             engineFailures++
-            return say("Mühərrikin qaytardığı gediş bu FEN üçün qanuni deyil; nəticə saxlanmadı")
+            val message = "Stockfish qanunsuz gediş qaytardı; nəticə saxlanmadı. FEN: $fen"
+            if (autoRunning) stopAutomaticAnalysis("Avtomatik analiz dayandırıldı. $message")
+            else say(message)
+            return
         }
         lastEngineMs = SystemClock.elapsedRealtime() - engineStarted
         addMetric(engineSamples, lastEngineMs)
