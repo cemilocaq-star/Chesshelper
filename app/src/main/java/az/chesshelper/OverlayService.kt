@@ -531,6 +531,7 @@ class OverlayService : Service() {
     private fun stopAutomaticAnalysis() {
         autoRunning = false
         autoGeneration++
+        engine?.stopSearch()
         autoJob?.cancel()
         autoJob = null
         say("Avtomatik analiz dayandırıldı")
