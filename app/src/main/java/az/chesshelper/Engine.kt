@@ -109,14 +109,14 @@ class Engine(ctx: Context) : AutoCloseable {
     fun best(fen: String, moveTimeMs: Int = 800): String? {
         require(moveTimeMs in 100..30_000) { "Analiz müddəti 100–30000 ms olmalıdır" }
         require(fen.isNotBlank() && !fen.contains('\n')) { "FEN yanlışdır" }
-        synchronized(outputLock) {
-            check(!closed.get() && proc.isAlive) { "Stockfish prosesi aktiv deyil" }
-            sendLocked("position fen $fen")
-            searching = true
-            sendLocked("go movetime $moveTimeMs")
-        }
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(moveTimeMs + 5_000L)
         try {
+            synchronized(outputLock) {
+                check(!closed.get() && proc.isAlive) { "Stockfish prosesi aktiv deyil" }
+                sendLocked("position fen $fen")
+                searching = true
+                sendLocked("go movetime $moveTimeMs")
+            }
             while (true) {
                 val left = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())
                 if (left <= 0) throw IllegalStateException("Stockfish analiz vaxtını aşdı")
