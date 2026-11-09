@@ -14,8 +14,8 @@ class RookSacrificeDetectorTest {
 
     @Test
     fun detectsOpponentCapturingBlackRook() {
-        val before = "r3k3/8/8/8/8/1N6/8/4K3"
-        val after = "n3k3/8/8/8/8/8/8/4K3"
+        val before = "r3k3/8/1N6/8/8/8/8/4K3"
+        val after = "N3k3/8/8/8/8/8/8/4K3"
         assertTrue(RookSacrificeDetector.wasRookCaptured(before, after, 'w'))
     }
 
