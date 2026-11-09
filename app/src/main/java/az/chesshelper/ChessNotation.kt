@@ -15,15 +15,15 @@ object ChessNotation {
         require(uciPattern.matches(uci)) { "UCI formatı yanlışdır" }
         val board = Board()
         board.loadFromFen(fen)
-        val move = Move(uci, board.getSideToMove())
-        require(board.isMoveLegal(move, true)) { "Mühərrik qanunsuz gediş qaytardı: $uci" }
+        val parsed = Move(uci, board.getSideToMove())
+        // isMoveLegal checks king safety and move consistency, but the complete legal move
+        // generator is the authoritative check for piece geometry and blocked paths.
+        val move = board.legalMoves().firstOrNull { it == parsed }
+            ?: throw IllegalArgumentException("Mühərrik qanunsuz gediş qaytardı: $uci")
         val list = MoveList(fen)
         require(list.add(move)) { "Gediş tarixçəyə əlavə edilmədi" }
-        val san = list.toSanArray().singleOrNull()
+        list.toSanArray().singleOrNull()
             ?: throw IllegalStateException("SAN çevirməsi alınmadı")
-        val verifier = board.clone()
-        require(verifier.doMove(move, true)) { "Gediş təsdiqlənmədi" }
-        san
     }.getOrNull()
 
     fun sanWithMoveNumber(fen: String, uci: String): String? = runCatching {
