@@ -33,11 +33,16 @@ class Engine(ctx: Context) : AutoCloseable {
                 if (!closed.get()) readerFailure = t
             }
         }, "Stockfish-UCI-reader").apply { isDaemon = true; start() }
-        send("uci")
-        waitFor("uciok", 10_000)
-        send("setoption name Threads value 2")
-        send("isready")
-        waitFor("readyok", 10_000)
+        try {
+            send("uci")
+            waitFor("uciok", 10_000)
+            send("setoption name Threads value 2")
+            send("isready")
+            waitFor("readyok", 10_000)
+        } catch (e: Exception) {
+            close()
+            throw e
+        }
     }
 
     @Synchronized
