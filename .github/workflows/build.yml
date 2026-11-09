@@ -1,3 +1,4 @@
+
 name: Build APK
 
 on:
@@ -7,49 +8,71 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
-      # Stockfish-i Android NDK ilə arm64 üçün yığır. Ən son 5 rəsmi release etiketi ardıcıl yoxlanılır:
-      # birincisi yığılan istifadə olunur, uğursuz olanın xəta sətirləri log-da göstərilir.
+      # Build Stockfish for Android arm64
       - name: Build Stockfish (arm64)
+        shell: bash
         run: |
+          set -e
+
           export PATH="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+
           echo "NDK: $ANDROID_NDK_LATEST_HOME"
           aarch64-linux-android21-clang++ --version
 
-          git clone --filter=blob:none https://github.com/official-stockfish/Stockfish.git
+          git clone --filter=blob:none \
+            https://github.com/official-stockfish/Stockfish.git
+
           cd Stockfish
+
           built=""
+
           for TAG in $(git tag --list 'sf_*' --sort=-v:refname | head -n 5); do
             echo "::group::Stockfish $TAG"
+
             git checkout -q -f "$TAG"
             git clean -fdxq
+
             if (cd src && make -j"$(nproc)" build ARCH=armv8 COMP=ndk > ../build.log 2>&1); then
               built="$TAG"
               echo "::endgroup::"
               break
             fi
-            echo "Build failed for $TAG. Last log lines:"
+
+            echo "Build failed for $TAG"
             tail -n 40 build.log
-            cp build.log "$GITHUB_WORKSPACE/stockfish-build-$TAG.log" || true
+
+            cp build.log "$GITHUB_WORKSPACE/stockfish-build-${TAG}.log" || true
+
             echo "::endgroup::"
           done
+
           if [ -z "$built" ]; then
             echo "::error::Stockfish could not be built for any of the latest tags"
             exit 1
           fi
-          echo "Built Stockfish $built"
-          test -f src/stockfish
-          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a"
-          cp src/stockfish "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libstockfish.so"
 
-      - name: Upload Stockfish build logs (only on failure)
+          echo "Built Stockfish $built"
+
+          test -f src/stockfish
+
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a"
+
+          cp src/stockfish \
+            "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libstockfish.so"
+
+      # Upload Stockfish logs if build fails
+      - name: Upload Stockfish build logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -57,19 +80,52 @@ jobs:
           path: stockfish-build-*.log
           if-no-files-found: ignore
 
-      # Gradle yüklənməsi müvəqqəti server xətalarında (504) təkrar cəhd edir
+      # Install Gradle 8.7
       - name: Install Gradle 8.7
+        shell: bash
         run: |
-          curl -fL --retry 8 --retry-all-errors --retry-delay 5 \
-            -o gradle.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          set -e
+
+          ok=""
+
+          URLS=(
+            "https://services.gradle.org/distributions/gradle-8.7-bin.zip"
+            "https://downloads.gradle.org/distributions/gradle-8.7-bin.zip"
+          )
+
+          for URL in "${URLS[@]}"; do
+            echo "Trying $URL"
+
+            if curl -fL \
+              --retry 5 \
+              --retry-all-errors \
+              --retry-delay 5 \
+              -o gradle.zip "$URL"; then
+              ok=1
+              break
+            fi
+          done
+
+          if [ -z "$ok" ]; then
+            echo "::error::Gradle could not be downloaded"
+            exit 1
+          fi
+
           unzip -q gradle.zip -d "$HOME"
+
           echo "$HOME/gradle-8.7/bin" >> "$GITHUB_PATH"
 
-      # debug APK birbaşa quraşdırıla bilir (açar generasiyası lazım deyil)
+      # Build debug APK
       - name: Build APK
-        run: gradle :app:assembleDebug
+        shell: bash
+        run: |
+          gradle --version
+          gradle :app:assembleDebug --stacktrace
 
-      - uses: actions/upload-artifact@v4
+      # Upload APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: ChessHelper-apk
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
