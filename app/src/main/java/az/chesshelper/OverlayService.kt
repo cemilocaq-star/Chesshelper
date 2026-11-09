@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.content.res.ColorStateList
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.Image
@@ -32,6 +33,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -56,7 +58,7 @@ class OverlayService : Service() {
     @Volatile private var engine: Engine? = null
     @Volatile private var destroyed = false
 
-    private var panel: LinearLayout? = null
+    private var panel: View? = null
     private var bubble: TextView? = null
     private var arrow: ArrowView? = null
     private var status: TextView? = null
@@ -245,6 +247,7 @@ class OverlayService : Service() {
         val st = TextView(this).apply {
             setTextColor(Color.WHITE)
             textSize = 12f
+            setPadding((4 * dp).toInt(), (4 * dp).toInt(), (4 * dp).toInt(), (4 * dp).toInt())
         }
         status = st
         p.addView(st)
@@ -329,9 +332,19 @@ class OverlayService : Service() {
         btn("Mövzu: dəyiş") { cycleTheme(p) }
         btn("Bağla") { stopSelf() }
 
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            addView(p, ScrollView.LayoutParams(
+                ScrollView.LayoutParams.WRAP_CONTENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        applyPanelTheme(p)
+
         val lp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            (resources.displayMetrics.heightPixels * 0.68f).toInt(),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
@@ -357,14 +370,14 @@ class OverlayService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     lp.x = ox + (e.rawX - sx).toInt()
                     lp.y = oy + (e.rawY - sy).toInt()
-                    wm.updateViewLayout(p, lp)
+                    wm.updateViewLayout(scroll, lp)
                 }
             }
             true
         }
 
-        panel = p
-        wm.addView(p, lp)
+        panel = scroll
+        wm.addView(scroll, lp)
 
         // 48dp circular quick-toggle bubble; dragging moves it, tapping opens/closes the full panel.
         val bubbleView = TextView(this).apply {
@@ -405,7 +418,10 @@ class OverlayService : Service() {
                     val dx = (event.rawX - downX).toInt()
                     val dy = (event.rawY - downY).toInt()
                     if (kotlin.math.abs(dx) > 6 || kotlin.math.abs(dy) > 6) moved = true
-                    blp.x = startX + dx; blp.y = startY + dy
+                    val maxX = (resources.displayMetrics.widthPixels - (48 * dp).toInt()).coerceAtLeast(0)
+                    val maxY = (resources.displayMetrics.heightPixels - (48 * dp).toInt()).coerceAtLeast(0)
+                    blp.x = (startX + dx).coerceIn(0, maxX)
+                    blp.y = (startY + dy).coerceIn(0, maxY)
                     wm.updateViewLayout(view, blp)
                     true
                 }
@@ -423,9 +439,14 @@ class OverlayService : Service() {
         wm.addView(bubbleView, blp)
     }
 
+    private fun showServiceDialog(dialog: AlertDialog) {
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        dialog.show()
+    }
+
     private fun showAnalysisTimeDialog(button: Button) {
         val choices = arrayOf("Fast — 1 saniyə", "Normal — 3 saniyə", "Deep — 10 saniyə", "Custom — 1–30 saniyə")
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Təhlil müddəti")
             .setItems(choices) { _, which ->
                 when (which) {
@@ -439,7 +460,7 @@ class OverlayService : Service() {
                             setText(analysisTimeSeconds.toString())
                             selectAll()
                         }
-                        AlertDialog.Builder(this)
+                        val customDialog = AlertDialog.Builder(this)
                             .setTitle("Fərdi təhlil müddəti")
                             .setView(input)
                             .setNegativeButton("Ləğv et", null)
@@ -451,11 +472,13 @@ class OverlayService : Service() {
                                     setAnalysisTime(seconds, button)
                                 }
                             }
-                            .show()
+                            .create()
+                        showServiceDialog(customDialog)
                     }
                 }
             }
-            .show()
+            .create()
+        showServiceDialog(dialog)
     }
 
     private fun setAnalysisTime(seconds: Int, button: Button) {
@@ -509,18 +532,32 @@ class OverlayService : Service() {
         }
     }
 
+    private fun applyPanelTheme(target: LinearLayout) {
+        val key = getSharedPreferences("chess", MODE_PRIVATE).getString("theme", "dark")
+        val (backgroundColor, buttonColor) = when (key) {
+            "midnight" -> Color.rgb(10, 22, 48) to Color.rgb(24, 48, 82)
+            "amoled" -> Color.BLACK to Color.rgb(25, 25, 25)
+            else -> Color.rgb(20, 20, 20) to Color.rgb(45, 52, 60)
+        }
+        (target.background as? GradientDrawable)?.setColor(Color.argb(
+            230, Color.red(backgroundColor), Color.green(backgroundColor), Color.blue(backgroundColor)
+        ))
+        for (i in 0 until target.childCount) {
+            val child = target.getChildAt(i)
+            if (child is Button) {
+                child.backgroundTintList = ColorStateList.valueOf(buttonColor)
+                child.setTextColor(Color.WHITE)
+            }
+        }
+    }
+
     private fun cycleTheme(target: LinearLayout) {
         val prefs = getSharedPreferences("chess", MODE_PRIVATE)
         val themes = listOf("dark", "midnight", "amoled")
         val current = prefs.getString("theme", "dark") ?: "dark"
         val next = themes[(themes.indexOf(current).coerceAtLeast(0) + 1) % themes.size]
         prefs.edit().putString("theme", next).apply()
-        val bg = when (next) {
-            "midnight" -> Color.rgb(10, 22, 48)
-            "amoled" -> Color.BLACK
-            else -> Color.rgb(20, 20, 20)
-        }
-        (target.background as? GradientDrawable)?.setColor(Color.argb(225, Color.red(bg), Color.green(bg), Color.blue(bg)))
+        applyPanelTheme(target)
         say("Mövzu: ${when (next) { "midnight" -> "Midnight Blue"; "amoled" -> "AMOLED"; else -> "Dark" }}")
     }
 
@@ -529,12 +566,13 @@ class OverlayService : Service() {
         val message = if (items.isEmpty()) "Hələ analiz tarixçəsi yoxdur" else items.mapIndexed { i, item ->
             "${i + 1}. ${item.uci} · xana əhatəsi ${item.confidence}% · ${item.engineMs} ms"
         }.joinToString("\n")
-        AlertDialog.Builder(this).setTitle("Son gedişlər").setMessage(message)
-            .setPositiveButton("Bağla", null).show()
+        val dialog = AlertDialog.Builder(this).setTitle("Son analiz təklifləri").setMessage(message)
+            .setPositiveButton("Bağla", null).create()
+        showServiceDialog(dialog)
     }
 
     private fun showPerformance() {
-        AlertDialog.Builder(this).setTitle("Performance Monitor")
+        val dialog = AlertDialog.Builder(this).setTitle("Performance Monitor")
             .setMessage(
                 "Son tanınma: ${lastRecognitionMs} ms\n" +
                     "Orta tanınma (son ${recognitionSamples.size}): ${averageMetric(recognitionSamples)} ms\n" +
@@ -546,7 +584,8 @@ class OverlayService : Service() {
                     "Analiz müddəti: ${analysisTimeSeconds} s\n" +
                     "Mühərrik: ${if (maxEngineStrength) "Maksimum" else targetElo}"
             )
-            .setPositiveButton("Bağla", null).show()
+            .setPositiveButton("Bağla", null).create()
+        showServiceDialog(dialog)
     }
 
     private fun shareExport(content: String, mime: String) {
