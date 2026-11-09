@@ -1,32 +1,48 @@
 package az.chesshelper
 
 /**
- * Detects a rook being captured between two consecutive recognized board positions.
- * This is an observable proxy for a rook sacrifice; screenshots alone cannot prove
- * that the preceding move was strategically intentional.
+ * Detects a rook that was deliberately moved onto a square and captured on the
+ * opponent's immediately following move. A screenshot sequence cannot prove intent,
+ * so this is a conservative, observable rook-sacrifice heuristic.
  */
 object RookSacrificeDetector {
-    fun wasRookCaptured(previousPlacement: String, currentPlacement: String, sideToMoveBefore: Char): Boolean {
-        if (sideToMoveBefore != 'w' && sideToMoveBefore != 'b') return false
-        val before = parse(previousPlacement) ?: return false
-        val after = parse(currentPlacement) ?: return false
-        val victimRook = if (sideToMoveBefore == 'w') 'r' else 'R'
-        val capturerIsWhite = sideToMoveBefore == 'b'
+    fun wasRookSacrificed(
+        beforeOfferPlacement: String,
+        offeredPlacement: String,
+        afterCapturePlacement: String,
+        sideToMoveBeforeCapture: Char
+    ): Boolean {
+        if (sideToMoveBeforeCapture != 'w' && sideToMoveBeforeCapture != 'b') return false
+        val before = parse(beforeOfferPlacement) ?: return false
+        val offered = parse(offeredPlacement) ?: return false
+        val after = parse(afterCapturePlacement) ?: return false
+        val rook = if (sideToMoveBeforeCapture == 'b') 'R' else 'r'
+        val capturerIsWhite = sideToMoveBeforeCapture == 'w'
 
         for (rank in 0..7) for (file in 0..7) {
-            if (before[rank][file] != victimRook) continue
+            if (offered[rank][file] != rook || before[rank][file] == rook) continue
             val landed = after[rank][file]
             if (landed == '.' || landed.isUpperCase() != capturerIsWhite) continue
 
-            // Require a source square to become empty and the same attacking piece
-            // to land on the rook square. This filters ordinary rook moves/disappearances.
-            var matchingSources = 0
+            // The rook must have moved here on the immediately preceding position change.
+            var rookSources = 0
             for (fromRank in 0..7) for (fromFile in 0..7) {
                 if (fromRank == rank && fromFile == file) continue
-                if (before[fromRank][fromFile] == landed &&
-                    after[fromRank][fromFile] == '.') matchingSources++
+                if (before[fromRank][fromFile] == rook && offered[fromRank][fromFile] == '.') {
+                    rookSources++
+                }
             }
-            if (matchingSources == 1) return true
+            if (rookSources != 1) continue
+
+            // The opponent's capturing piece must have moved from a different square.
+            var captureSources = 0
+            for (fromRank in 0..7) for (fromFile in 0..7) {
+                if (fromRank == rank && fromFile == file) continue
+                if (offered[fromRank][fromFile] == landed && after[fromRank][fromFile] == '.') {
+                    captureSources++
+                }
+            }
+            if (captureSources == 1) return true
         }
         return false
     }
@@ -38,9 +54,8 @@ object RookSacrificeDetector {
         for (fenRank in 0..7) {
             var file = 0
             for (ch in ranks[fenRank]) {
-                if (ch in '1'..'8') {
-                    file += ch - '0'
-                } else if (ch in "pnbrqkPNBRQK") {
+                if (ch in '1'..'8') file += ch - '0'
+                else if (ch in "pnbrqkPNBRQK") {
                     if (file !in 0..7) return null
                     board[7 - fenRank][file++] = ch
                 } else return null
