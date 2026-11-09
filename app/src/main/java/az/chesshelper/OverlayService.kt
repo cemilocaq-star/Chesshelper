@@ -24,6 +24,8 @@ import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.text.InputType
 import android.util.DisplayMetrics
 import android.view.Gravity
@@ -58,6 +60,8 @@ class OverlayService : Service() {
     private var frameThread: HandlerThread? = null
     @Volatile private var lastFrameAt = 0L
     @Volatile private var engine: Engine? = null
+    private var memeTts: TextToSpeech? = null
+    private var previousSideToMove: Char? = null
     @Volatile private var destroyed = false
 
     private var panel: View? = null
@@ -209,6 +213,10 @@ class OverlayService : Service() {
         ).coerceIn(500, 30_000)
         targetElo = getSharedPreferences("chess", MODE_PRIVATE).getInt("target_elo", 2000).coerceIn(1320, 3000)
         maxEngineStrength = getSharedPreferences("chess", MODE_PRIVATE).getBoolean("max_engine_strength", false)
+        memeTts?.shutdown()
+        memeTts = TextToSpeech(this) { result ->
+            if (result == TextToSpeech.SUCCESS) memeTts?.language = Locale.US
+        }
         buildUi()
         say(if (templates != null) "≡ Hazırdır" else "≡ Yeni oyunun əvvəlində Başlat bas")
 
@@ -499,6 +507,7 @@ class OverlayService : Service() {
     private fun resetGameSession() {
         stopAutomaticAnalysis()
         previousPlacement = null
+        previousSideToMove = null
         castling = "-"
         castlingKnown = false
         orientationKnown = false
@@ -839,6 +848,10 @@ class OverlayService : Service() {
         // Castling rights are known only when this session observed the initial position.
         // Thereafter they can only be removed when the original king/rook leaves its home square.
         val previous = previousPlacement
+        val sideBefore = previousSideToMove
+        if (previous != null && sideBefore != null &&
+            RookSacrificeDetector.wasRookCaptured(previous, reading.placement, sideBefore)
+        ) announceRookMeme()
         if (previous == null) {
             if (BoardReader.isInitialPosition(reading.placement)) {
                 castling = "KQkq"
@@ -851,10 +864,16 @@ class OverlayService : Service() {
             castling = BoardReader.updateCastling(castling, previous, reading.placement)
         }
         previousPlacement = reading.placement
+        previousSideToMove = reading.sideToMove
         lastRecognitionMs = SystemClock.elapsedRealtime() - recognitionStarted
         addMetric(recognitionSamples, lastRecognitionMs)
         lastPieceCoverage = if (reading.occupiedCount == 0) 0 else (((reading.occupiedCount - reading.weak.size).coerceAtLeast(0) / reading.occupiedCount.toFloat()) * 100f).toInt()
         return Snap(board, reading, lastRecognitionMs, frameWidth, frameHeight)
+    }
+
+    private fun announceRookMeme() {
+        say("♜ THE ROOOOOK!")
+        memeTts?.speak("The rook!", TextToSpeech.QUEUE_FLUSH, null, "rook-sacrifice-meme")
     }
 
     /** Oxunmuş taxtanı ekranın üstündə göstərir ki, tanımanın düzgünlüyü yoxlanılsın. */
@@ -999,6 +1018,9 @@ class OverlayService : Service() {
         projection?.stop()
         engine?.close()
         engine = null
+        memeTts?.stop()
+        memeTts?.shutdown()
+        memeTts = null
         super.onDestroy()
     }
 }
