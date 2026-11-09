@@ -87,6 +87,7 @@ class OverlayService : Service() {
     @Volatile private var autoRunning = false
     private var autoJob: Job? = null
     private var autoGeneration = 0
+    private var autoPanelHeightBeforeRun: Int? = null
     private var stableFrameCount = 0
     private var lastRecognitionMs = 0L
     private var lastEngineMs = 0L
@@ -423,13 +424,18 @@ class OverlayService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!moved) {
-                        val params = panelLayoutParams
-                        if (params != null) {
-                            val showing = params.height > 0
-                            params.height = if (showing) 0 else panelExpandedHeight
-                            scroll.visibility = if (showing) View.GONE else View.VISIBLE
-                            wm.updateViewLayout(scroll, params)
-                            bubbleView.alpha = if (showing) 1f else 0.75f
+                        if (autoRunning) {
+                            // During automatic analysis the bubble is the persistent Stop control.
+                            stopAutomaticAnalysis()
+                        } else {
+                            val params = panelLayoutParams
+                            if (params != null) {
+                                val showing = params.height > 0
+                                params.height = if (showing) 0 else panelExpandedHeight
+                                scroll.visibility = if (showing) View.GONE else View.VISIBLE
+                                wm.updateViewLayout(scroll, params)
+                                bubbleView.alpha = if (showing) 1f else 0.75f
+                            }
                         }
                     }
                     true
@@ -466,13 +472,27 @@ class OverlayService : Service() {
         button.text = "Növbə: ${when (sideOverride) { 'w' -> "Ağ"; 'b' -> "Qara"; else -> "Avtomatik" }}"
     }
 
-    private fun stopAutomaticAnalysis() {
+    private fun stopAutomaticAnalysis(message: String = "Avtomatik analiz dayandırıldı") {
+        val wasRunning = autoRunning
         autoRunning = false
         autoGeneration++
         engine?.stopSearch()
         autoJob?.cancel()
         autoJob = null
-        say("Avtomatik analiz dayandırıldı")
+        val restoreHeight = autoPanelHeightBeforeRun
+        autoPanelHeightBeforeRun = null
+        if (wasRunning && restoreHeight != null && !destroyed) {
+            try {
+                panelLayoutParams?.let { params ->
+                    params.height = restoreHeight
+                    panel?.visibility = View.VISIBLE
+                    panel?.let { wm.updateViewLayout(it, params) }
+                }
+            } catch (_: Exception) {
+                // Window may already have been removed during service shutdown.
+            }
+        }
+        say(message)
     }
 
     private fun resetGameSession() {
@@ -502,22 +522,44 @@ class OverlayService : Service() {
         lastAnalyzedPositionKey = null
         candidatePositionKey = null
         stableFrameCount = 0
-        say("Avtomatik tanıma başladıldı")
-        autoJob = scope.launch {
-            while (autoRunning && myGeneration == autoGeneration) {
-                if (!busy) {
-                    try {
-                        busy = true
-                        analyzeOnce()
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        say("Xəta: ${e.message ?: e.javaClass.simpleName}")
-                    } finally {
-                        busy = false
-                    }
+
+        // Hide the large panel once for the whole automatic session, not on every frame.
+        panelLayoutParams?.let { params ->
+            if (params.height > 0) {
+                autoPanelHeightBeforeRun = params.height
+                params.height = 0
+                panel?.visibility = View.INVISIBLE
+                try {
+                    panel?.let { wm.updateViewLayout(it, params) }
+                } catch (_: Exception) {
+                    autoPanelHeightBeforeRun = null
                 }
-                delay(900)
+            }
+        }
+        bubble?.alpha = 1f
+        say("Avtomatik tanıma başladıldı · dairəvi düymə ilə dayandır")
+        autoJob = scope.launch {
+            try {
+                while (autoRunning && myGeneration == autoGeneration) {
+                    if (!busy) {
+                        try {
+                            busy = true
+                            analyzeOnce()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            stopAutomaticAnalysis("Avtomatik analiz xətası: ${e.message ?: e.javaClass.simpleName}")
+                            break
+                        } finally {
+                            busy = false
+                        }
+                    }
+                    delay(1200)
+                }
+            } finally {
+                if (myGeneration == autoGeneration && autoRunning) {
+                    stopAutomaticAnalysis()
+                }
             }
         }
     }
@@ -607,64 +649,72 @@ class OverlayService : Service() {
     private suspend fun capture(): Bitmap? {
         arrow?.clear()
         val previousPanelVisibility = panel?.visibility
-        val previousBubbleVisibility = bubble?.visibility
+        val params = panelLayoutParams
+        val previousPanelHeight = params?.height
         val dialog = activeDialog?.takeIf { it.isShowing }
         val dialogDecor = dialog?.window?.decorView
         val previousDialogVisibility = dialogDecor?.visibility
-        val params = panelLayoutParams
-        val previousPanelHeight = params?.height
-        panel?.visibility = View.INVISIBLE
-        if (params != null && params.height > 0) {
-            params.height = 0
-            panel?.let { wm.updateViewLayout(it, params) }
+
+        // Automatic mode already hides the panel for the entire session. Manual captures
+        // hide it temporarily. The small bubble remains available as the Stop control.
+        val hidePanelForThisCapture = !autoRunning
+        if (hidePanelForThisCapture) {
+            panel?.visibility = View.INVISIBLE
+            if (params != null && params.height > 0) {
+                params.height = 0
+                panel?.let { wm.updateViewLayout(it, params) }
+            }
         }
-        bubble?.visibility = View.INVISIBLE
         dialogDecor?.visibility = View.INVISIBLE
         try {
-            // Wait for one fresh frame after hiding the controls. Do not wait for a "quiet"
-            // 300ms period: screen capture is continuous, so that condition never occurs.
-            val start = SystemClock.uptimeMillis()
-            delay(350)
+            val startedAt = SystemClock.uptimeMillis()
+            // Let WindowManager apply a manual hide, then wait only for a genuinely fresh frame.
+            if (hidePanelForThisCapture) delay(16)
             var waited = 0
-            while (lastFrameAt < start && waited < 1000) {
-                delay(25)
-                waited += 25
+            while (lastFrameAt <= startedAt && waited < 1000) {
+                delay(20)
+                waited += 20
             }
-            if (lastFrameAt < start) return null
-            return synchronized(frameLock) {
-                val img = latestImage ?: return@synchronized null
-                latestImage = null
-                try {
-                    val plane = img.planes[0]
-                    val rowPixels = plane.rowStride / plane.pixelStride
-                    val padded = Bitmap.createBitmap(rowPixels, img.height, Bitmap.Config.ARGB_8888)
+            if (lastFrameAt <= startedAt) return null
+
+            // Pixel copying can be expensive at phone resolution; never do it on Dispatchers.Main.
+            return withContext(Dispatchers.Default) {
+                synchronized(frameLock) {
+                    val img = latestImage ?: return@synchronized null
+                    latestImage = null
                     try {
-                        plane.buffer.rewind()
-                        padded.copyPixelsFromBuffer(plane.buffer)
-                        if (rowPixels == img.width) padded
-                        else Bitmap.createBitmap(padded, 0, 0, img.width, img.height).also { padded.recycle() }
-                    } catch (e: Exception) {
-                        if (!padded.isRecycled) padded.recycle()
-                        throw e
+                        val plane = img.planes[0]
+                        val rowPixels = plane.rowStride / plane.pixelStride
+                        val padded = Bitmap.createBitmap(rowPixels, img.height, Bitmap.Config.ARGB_8888)
+                        try {
+                            plane.buffer.rewind()
+                            padded.copyPixelsFromBuffer(plane.buffer)
+                            if (rowPixels == img.width) padded
+                            else Bitmap.createBitmap(padded, 0, 0, img.width, img.height).also { padded.recycle() }
+                        } catch (e: Exception) {
+                            if (!padded.isRecycled) padded.recycle()
+                            throw e
+                        }
+                    } catch (_: Exception) {
+                        null
+                    } finally {
+                        img.close()
                     }
-                } catch (_: Exception) {
-                    null
-                } finally {
-                    img.close()
                 }
             }
         } finally {
             if (!destroyed) {
-                try {
-                    if (params != null && previousPanelHeight != null) {
-                        params.height = previousPanelHeight
-                        panel?.let { wm.updateViewLayout(it, params) }
+                if (hidePanelForThisCapture) {
+                    try {
+                        if (params != null && previousPanelHeight != null) {
+                            params.height = previousPanelHeight
+                            panel?.let { wm.updateViewLayout(it, params) }
+                        }
+                    } catch (_: Exception) {
+                        // The service may be closing while this capture is cancelled.
                     }
-                } catch (_: Exception) {
-                    // The service may be closing while this capture is cancelled.
+                    panel?.visibility = previousPanelVisibility ?: View.VISIBLE
                 }
-                panel?.visibility = previousPanelVisibility ?: View.VISIBLE
-                bubble?.visibility = previousBubbleVisibility ?: View.VISIBLE
                 if (dialog === activeDialog && dialog?.isShowing == true && dialogDecor != null) {
                     dialogDecor.visibility = previousDialogVisibility ?: View.VISIBLE
                 }
