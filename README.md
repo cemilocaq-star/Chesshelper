@@ -10,8 +10,9 @@ Tətbiq şəxsi təhlil, bot oyunları və bütün iştirakçıların əvvəlcə
 2. Şahmat taxtasını tam ekranda göstər. Yeni oyunun başlanğıcında üzən paneldən **Avtomatik başlat** seç. Fiqur şablonları və taxtanın istiqaməti öyrənilib yadda saxlanır.
 3. Tətbiq təxminən saniyədə bir dəfə ekranı oxuyur. Yeni mövqe iki ardıcıl oxunuşda eyni təsdiqlənəndən sonra Stockfish analiz edir. Hər gedişdə yenidən düyməyə basmaq lazım deyil.
 4. **Dayandır** avtomatik oxuma dövrünü saxlayır. Dairəvi şahmat düyməsi paneli gizlədir/göstərir; onu sürüşdürərək yerini dəyişmək olar.
-5. **Yoxla** tanınmış taxtanı göstərir. Qırmızı çərçivə tanınması şübhəli olan fiqur xanasını bildirir. Lazım gəldikdə **Şablonu yenilə** ilə başlanğıc mövqedə yenidən kalibrə et.
-6. Son gedişin işıqlandırılmasından növbə müəyyən edilə bilmirsə, **Növbə** düyməsindən Ağ və ya Qara seç. Avtomatik rejimdə qeyri-müəyyən növbə üçün mühərrikdən təsadüfi tərəf seçilmir.
+5. Eyni servis işləyərkən yeni oyuna keçəndə **Yeni oyun** düyməsini bas, sonra başlanğıc taxta göründükdə **Avtomatik başlat** seç. Bu, əvvəlki oyunun rokirovka və istiqamət vəziyyətini sıfırlayır.
+6. **Yoxla** tanınmış taxtanı göstərir. Qırmızı çərçivə tanınması şübhəli olan fiqur xanasını bildirir. Lazım gəldikdə **Şablonu yenilə** ilə başlanğıc mövqedə yenidən kalibrə et.
+7. Son gedişin işıqlandırılmasından növbə müəyyən edilə bilmirsə, **Növbə** düyməsindən Ağ və ya Qara seç. Avtomatik rejimdə qeyri-müəyyən növbə üçün mühərrikdən təsadüfi tərəf seçilmir.
 
 ## Analiz parametrləri
 
