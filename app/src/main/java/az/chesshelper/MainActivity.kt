@@ -263,20 +263,29 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == reqCapture && resultCode == RESULT_OK && data != null) {
-            val i = Intent(this, OverlayService::class.java)
-                .putExtra("code", resultCode)
-                .putExtra("data", data)
-            try {
-                startForegroundService(i)
-            } catch (e: Exception) {
-                android.util.Log.e("ChessHelper", "Could not start overlay service", e)
-                android.widget.Toast.makeText(
-                    this,
-                    "Xidmət başladılmadı: ${e.localizedMessage ?: e.javaClass.simpleName}",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-            }
+        if (requestCode != reqCapture) return
+
+        if (resultCode != RESULT_OK || data == null) {
+            android.widget.Toast.makeText(
+                this,
+                "Ekran icazəsi verilmədi. Yenidən Başlat düyməsinə basıb icazə pəncərəsində “İndi başlat” seç.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        val i = Intent(this, OverlayService::class.java)
+            .putExtra("code", resultCode)
+            .putExtra("data", data)
+        try {
+            startForegroundService(i)
+        } catch (e: Exception) {
+            android.util.Log.e("ChessHelper", "Could not start overlay service", e)
+            android.widget.Toast.makeText(
+                this,
+                "Xidmət başladılmadı: ${e.localizedMessage ?: e.javaClass.simpleName}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
         }
     }
 }
