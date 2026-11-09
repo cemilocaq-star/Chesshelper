@@ -359,7 +359,7 @@ class OverlayService : Service() {
     }
 
     private fun showAnalysisTimeDialog(button: Button) {
-        val choices = arrayOf("1 saniyə", "3 saniyə", "10 saniyə", "Fərdi vaxt (1–30 saniyə)")
+        val choices = arrayOf("Fast — 1 saniyə", "Normal — 3 saniyə", "Deep — 10 saniyə", "Custom — 1–30 saniyə")
         AlertDialog.Builder(this)
             .setTitle("Təhlil müddəti")
             .setItems(choices) { _, which ->
@@ -491,7 +491,10 @@ class OverlayService : Service() {
      */
     private suspend fun capture(): Bitmap? {
         arrow?.clear()
+        val previousPanelVisibility = panel?.visibility
+        val previousBubbleVisibility = bubble?.visibility
         panel?.visibility = View.INVISIBLE
+        bubble?.visibility = View.INVISIBLE
         val t0 = SystemClock.uptimeMillis()
         delay(250)
         var waited = 0
@@ -517,7 +520,8 @@ class OverlayService : Service() {
         } catch (e: Exception) {
             null
         }
-        panel?.visibility = View.VISIBLE
+        panel?.visibility = previousPanelVisibility ?: View.VISIBLE
+        bubble?.visibility = previousBubbleVisibility ?: View.VISIBLE
         return bmp
     }
 
