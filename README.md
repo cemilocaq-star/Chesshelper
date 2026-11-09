@@ -1,61 +1,83 @@
-# Chess Helper (Android)
+# ChessHelper (Android)
 
-chess.com taxtasını ekrandan oxuyub Stockfish ilə ən yaxşı gedişi göstərən üzən köməkçi.
-Gediş belə göstərilir: çıxış xanasında halqa, ox və hədəf xanada parıldayan fiqur.
+ChessHelper Android ekrandakı şahmat taxtasını tanıyır və Stockfish-dən **mövcud mövqe üçün mühərrik tövsiyəsi** alır. Nəticə üzən paneldə ox və gediş işarəsi ilə göstərilir.
+
+Tətbiq şəxsi təhlil, bot oyunları və bütün iştirakçıların əvvəlcədən razı olduğu oyunlar üçündür. Platforma və turnir qaydaları mühərrik köməyini qadağan edirsə, həmin oyunlarda istifadə etmə.
 
 ## İstifadə
 
-1. APK-nı quraşdır, tətbiqi aç, **Başlat**a bas və icazələri ver (üstündə göstərmə, bildiriş, ekran tutma).
-2. chess.com-da oyunu aç. **Yeni oyunun əvvəlində** (ilk 1-2 gedişdə) üzən paneldə bir dəfə **Başlat**a bas.
-   Tətbiq taxta mövzusunu, fiqur görünüşünü və ağın aşağıda/yuxarıda olduğunu özü öyrənir və yadda saxlayır.
-3. Sonra hər növbədə **Başlat**a bas: panel bir anlıq gizlənir, ekran oxunur və gediş 7 saniyə göstərilir.
-4. **Yoxla** düyməsi tətbiqin taxtanı necə oxuduğunu ekranın üstündə çəkir. Qırmızı çərçivə şübhəli xanadır.
-   Səhv fiqur görsən, yeni oyunun əvvəlində **Şablonu yenilə** bas.
+1. Tətbiqi aç, **Başlat** düyməsinə bas və tələb olunan ekran tutma, overlay və bildiriş icazələrini ver.
+2. Şahmat taxtasını tam ekranda göstər. Yeni oyunun başlanğıcında üzən paneldən **Avtomatik başlat** seç. Fiqur şablonları və taxtanın istiqaməti öyrənilib yadda saxlanır.
+3. Tətbiq təxminən saniyədə bir dəfə ekranı oxuyur. Yeni mövqe iki ardıcıl oxunuşda eyni təsdiqlənəndən sonra Stockfish analiz edir. Hər gedişdə yenidən düyməyə basmaq lazım deyil.
+4. **Dayandır** avtomatik oxuma dövrünü saxlayır. Dairəvi şahmat düyməsi paneli gizlədir/göstərir; onu sürüşdürərək yerini dəyişmək olar.
+5. Eyni servis işləyərkən yeni oyuna keçəndə **Yeni oyun** düyməsini bas, sonra başlanğıc taxta göründükdə **Avtomatik başlat** seç. Bu, əvvəlki oyunun rokirovka və istiqamət vəziyyətini sıfırlayır.
+6. **Yoxla** tanınmış taxtanı göstərir. Qırmızı çərçivə tanınması şübhəli olan fiqur xanasını bildirir. Lazım gəldikdə **Şablonu yenilə** ilə başlanğıc mövqedə yenidən kalibrə et.
+7. Son gedişin işıqlandırılmasından növbə müəyyən edilə bilmirsə, **Növbə** düyməsindən Ağ və ya Qara seç. Avtomatik rejimdə qeyri-müəyyən növbə üçün mühərrikdən təsadüfi tərəf seçilmir.
 
-Panelin yazısından tutub sürüşdürə bilərsən.
+## Analiz parametrləri
 
-## Fiqur tanıma necə işləyir
+- **Fast:** 1 saniyə.
+- **Normal:** 3 saniyə.
+- **Deep:** 10 saniyə.
+- **Custom:** 1–30 saniyə.
+- **Mühərrik ELO-su:** 1320–3000 aralığında 20 vahid addımla.
+- **Maksimum güc:** Stockfish ELO məhdudiyyətini söndürür.
 
-1. **Taxta tapma:** ekrandakı iki dominant rəng 8x8 şahmat düzülüşünə görə tapılır, mövzu siyahısı yoxdur.
-   İnterfeysdə açıq xana rənginə bənzər elementlər olsa da taxta düzgün ayrılır.
-2. **Siluet maskası:** hər xananın fon rəngi küncləri müqayisə edərək təyin olunur, fondan fərqli və xarici fondan
-   ayrılan hər şey fiqurun siluetidir (konturun içi də). Ağ fiqur açıq xanada, qara fiqur tünd xanada eyni görünür.
-3. **Növ:** siluet və daxili kənar xəritəsi şablonlarla müqayisə olunur. Ağ/qara rəng parlaqlıqdan təyin olunur.
-4. **Qayda ilə düzəliş:** ikinci şah, son sırada piyada, 8-dən çox piyada kimi qeyri-mümkün nəticələr
-   ikinci ən yaxşı variantla düzəldilir.
-5. **Şablonlar** oyunun əvvəlindən öyrənilir, tətbiq yenidən açılanda da yadda qalır.
-   Şablonlar mövzudan asılı deyil, ona görə mövzunu dəyişəndə də işləyir.
+Seçilmiş parametrlər cihazda yadda saxlanılır. ELO parametri mühərrikin məhdudlaşdırılmış güc hədəfidir; real oyun reytinqinə zəmanət deyil.
 
-`tools/recognition-sim/` qovluğunda bu alqoritmin Python-dakı eyni nüsxəsi və sintetik taxta generatoru var.
-Orada 4 mövzu, 2 fiqur dəsti, 1-4 piksel sürüşmə, bulanıqlıq, şah hücumu parıltısı, gediş və tutma işarələri
-ilə yoxlama aparılıb: 100% düzgün xana (təhlükəsizlik üçün bunun real chess.com ekranı olmadığını nəzərə al).
-İşə salmaq: `cd tools/recognition-sim && python3 run.py` (numpy, scipy, Pillow lazımdır).
+## Tanınma və vəziyyət məlumatları
 
-## Avtomatik edilənlər
+- Taxta kəşfi və fiqur tanınması mövcud `BoardReader` alqoritmi ilə aparılır.
+- Taxtanın istiqaməti ilk etibarlı kalibrasiyadan sonra sessiya ərzində sabit saxlanılır.
+- Tanınma keyfiyyəti göstəricisi yalnız fiqur kimi tanınmış xanalar arasındakı güclü təsnifat payını göstərir. Bu, ehtimal və ya dəqiqlik zəmanəti deyil.
+- Eyni mövqenin təkrar analiz edilməməsi üçün fiqur düzülüşü, növbə, rokirovka hüquqları və en passant vəziyyəti birlikdə müqayisə olunur.
+- Roki­rovka hüquqları yalnız sessiya başlanğıc mövqedə müşahidə ediləndə tam məlum sayılır. Oyunun ortasında qoşulanda sistem naməlum tarixi hüquqları uydurmur və rokirovkanı söndürür.
+- FEN-in yarımgediş və tam gediş sayğacları ekran görüntüsündən bərpa edilə bilmədiyi üçün hazırda standart başlanğıc dəyərləri ilə doldurulur. Bu, oyunun əvvəlindən tam PGN tarixçəsi demək deyil.
 
-- **İstiqamət:** ağ aşağıda/yuxarıda avtomatik təyin olunur.
-- **Kimin növbəsi:** chess.com-un son gediş işıqlandırmasından oxunur. İşıqlandırma tapılmasa, aşağıdakı rəngin növbəsi qəbul edilir.
-- **En passant:** son gediş iki xanalıq piyada gedişidirsə FEN-ə yazılır.
-- **Rokirovka:** oyunun əvvəlindən izlənir, kral və ya qala yerindən çıxanda hüquq silinir.
-- **Fiqur şəkli:** parıldayan fiqur şriftdən asılı olmayaraq vektor şəkildə çəkilir.
+## Tarixçə və ixrac
 
-## Qalan texniki hədlər
+- Son 100 mühərrik tövsiyəsi saxlanılır: FEN, UCI gedişi, zaman möhürü, fiqur tanınma keyfiyyəti və ölçülmüş müddətlər.
+- **PGN tövsiyə ixracı** hər tövsiyəni həmin FEN-dən başlayan ayrıca, bir gedişlik PGN mövqeyi kimi ixrac edir. Bu, istifadəçinin həqiqətən oynadığı gedişlərin tarixçəsi deyil.
+- SAN çevirməsindən əvvəl UCI gedişi şahmat qaydaları kitabxanası ilə qanuni gedişlər siyahısına qarşı yoxlanılır. Qanunsuz gediş saxlanmır və göstərilmir.
+- **UCI ixracı** hər tövsiyə üçün `position fen ...` və `bestmove ...` əmrlərini saxlayır.
 
-- Şablonu öyrənmək üçün oyunun başlanğıcına yaxın (hər tərəfdən ən çoxu bir gediş) olmaq lazımdır.
-- Oyunun ortasından qoşulanda rokirovka hüququ bilinmir, ona görə rokirovka təklif olunmur.
-- Taxtada əl ilə çəkilmiş oxlar, animasiya və ya yarımçıq sürüşdürülən fiqur oxumanı poza bilər.
-- Taxta ekranda tam görünməlidir.
-- Tanıma sintetik taxtalarda yoxlanılıb, real chess.com fiqur dəstlərində qeyri-dəqiqlik ola bilər.
-  Şübhə olanda **Yoxla** düyməsi nəyin səhv oxunduğunu göstərir.
+## Performance Monitor
 
-## Qurulum (GitHub)
+Panel son tanınma və Stockfish müddətini, son 100 ölçmənin ortasını, fiqur tanınma keyfiyyəti göstəricisini, tanınma/mühərrik xətalarının sayını və tarixçənin doluluğunu göstərir.
 
-1. Bu qovluğu GitHub repo-suna yüklə.
-2. **Actions** bölməsində `Build APK` workflow-u işləyir: Stockfish-in ən son release-ini Android NDK ilə yığır, sonra APK qurur.
-3. İş bitəndə **Artifacts** bölməsindən `ChessHelper-apk` yüklə (debug APK, birbaşa quraşdırılır).
+## Görünüş
 
-Yerli quraşdırma üçün Stockfish-in arm64 binarisini `app/src/main/jniLibs/arm64-v8a/libstockfish.so` adı ilə qoy.
+Paneldə üç mövzu var: Dark, Midnight Blue və AMOLED. Mövzu seçimi cihazda saxlanılır. Dairəvi 48dp düymə paneli açıb-bağlayır; panel və düymə sürüşdürülə bilər.
 
-## Vacib xəbərdarlıq
+## Texniki məlumatlar
 
-Bu alət **bota qarşı oyun, öz oyunlarını təhlil etmək və qarşı tərəfin xəbəri olduğu dost oyunları** üçündür. chess.com-un fair-play qaydaları motor köməyini rated və unrated bütün oyunlarda qadağan edir. İnsanlara qarşı gizli istifadə hesabın bağlanmasına səbəb ola bilər.
+- Android minimum SDK: 26.
+- Hazırkı native Stockfish paketi: `arm64-v8a`.
+- Kotlin/JVM target: Java 17.
+- Stockfish UCI prosesi üçün timeout və təhlükəsiz bağlanma mexanizmi var.
+- MediaProjection kadrları ayrıca bitmap-ə köçürülür; `Image` obyektləri oxunuşdan sonra bağlanır.
+- SAN və PGN çevirməsi üçün chesslib istifadə edilir.
+
+### GitHub Actions
+
+`.github/workflows/build.yml` aşağıdakı işləri görür:
+
+1. Stockfish-in son buraxılış etiketlərindən Android ARM64 executable qurur.
+2. JVM unit testlərini işə salır.
+3. Debug APK yaradır.
+4. `ChessHelper-apk` artifact-ini yükləyir.
+
+APK yalnız workflow uğurla bitdikdən sonra Actions → həmin run → Artifacts bölməsindən götürülməlidir. Debug APK debug açarı ilə imzalanır; Play Store buraxılışı üçün ayrıca release signing konfiqurasiyası lazımdır.
+
+## Məlum məhdudiyyətlər
+
+- Fiqur şablonları ən yaxşı halda oyunun başlanğıc mövqeyində öyrədilir. Oyunun ortasında ilk dəfə açıldıqda şablon çatışmazlığı ola bilər.
+- Taxtada animasiya, yarımçıq sürüşdürülən fiqur, əl ilə çəkilmiş ox və ya pəncərə üst-üstə düşməsi tanınmanı poza bilər.
+- Son gediş işarəsi görünmürsə növbə əl ilə seçilməlidir.
+- Oyunun ortasında qoşulanda rokirovka hüquqları məlum olmadığından mühərrik rokirovka təklif etməyəcək.
+- Sintetik tanınma simulyasiyası real cihaz və real şahmat saytlarının bütün mövzularını/fiqur dəstlərini əhatə etmir. Real cihaz sınağı ayrıca tələb olunur.
+- CI build-in keçməsi overlay-in hər Android cihazında, ekran miqyasında və oyunun hər mövzusunda düzgün işlədiyini sübut etmir.
+
+## Fair-play
+
+Tətbiqi şəxsi oyun təhlili, botlara qarşı oyun və bütün iştirakçıların razı olduğu sessiyalarla məhdudlaşdır. Rəqibə və ya turnir/platforma qaydalarına zidd gizli mühərrik köməyindən istifadə etmə.

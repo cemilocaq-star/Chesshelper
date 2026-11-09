@@ -30,11 +30,12 @@ class MainActivity : Activity() {
         }
         root.addView(TextView(this).apply {
             text = "Chess Helper\n\n" +
-                "1) Başlat düyməsinə bas, icazələri ver.\n" +
-                "2) chess.com-da oyunu aç. Yeni oyunun əvvəlində (ilk 1-2 gedişdə) bir dəfə üzən \"Başlat\"a bas, şablonlar özü öyrənilir və yadda qalır.\n" +
-                "3) Sonra hər növbədə \"Başlat\"a bas, ən yaxşı gediş göstərilir.\n" +
-                "4) \"Yoxla\" taxtanın necə oxunduğunu göstərir (qırmızı çərçivə = şübhəli xana).\n\n" +
-                "Yalnız bota qarşı oyun, təhlil və razılaşdırılmış dost oyunları üçün."
+                "1) Başlat düyməsinə bas və ekran/overlay icazələrini ver.\n" +
+                "2) Şahmat taxtası ekranda tam görünsün. Yeni oyunun əvvəlində üzən paneldə Avtomatik başlat seçərək fiqur şablonlarını öyrət.\n" +
+                "3) Sonrakı mövqe dəyişiklikləri avtomatik oxunur; Dayandır düyməsi prosesi dayandırır.\n" +
+                "4) Növbə avtomatik bilinmirsə Növbə düyməsindən Ağ və ya Qara seç. Yoxla düyməsi şübhəli xanaları göstərir.\n" +
+                "5) Analiz nəticələri tarixçədə saxlanır; PGN/UCI ixracı hər FEN mövqeyi üçün ayrıca mühərrik tövsiyəsidir, real oynanmış oyun tarixçəsi deyil.\n\n" +
+                "Yalnız şəxsi təhlil, bot oyunları və bütün iştirakçıların razı olduğu oyunlar üçün istifadə et. Platforma və turnir qaydalarına əməl et."
             textSize = 16f
         })
         root.addView(Button(this).apply {

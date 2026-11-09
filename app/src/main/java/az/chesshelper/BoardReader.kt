@@ -103,8 +103,10 @@ class Reading(
     val enPassant: String,
     /** Oxunmuş fiqurlar ekran koordinatlarında [sətir][sütun], boş xana '.'. */
     val screen: Array<CharArray>,
-    /** Şübhəli xanalar (sətir * 8 + sütun). */
-    val weak: Set<Int>
+    /** Şübhəli fiqur xanaları (sətir * 8 + sütun). */
+    val weak: Set<Int>,
+    /** Number of squares classified as occupied after position constraints. */
+    val occupiedCount: Int
 )
 
 private fun normalize(v: FloatArray): FloatArray {
@@ -615,7 +617,7 @@ object BoardReader {
         val layout = if (whiteBottom) {
             mapOf(0 to "rnbqkbnr", 1 to "pppppppp", 6 to "PPPPPPPP", 7 to "RNBQKBNR")
         } else {
-            mapOf(0 to "RNBKQBNR", 1 to "PPPPPPPP", 6 to "pppppppp", 7 to "rnbkqbnr")
+            mapOf(0 to "RNBQKBNR", 1 to "PPPPPPPP", 6 to "pppppppp", 7 to "rnbqkbnr")
         }
 
         val map = HashMap<Char, ArrayList<Sample>>()
@@ -686,7 +688,12 @@ object BoardReader {
      * (son gedişin işıqlandırmasından). Qeyri-mümkün vəziyyətlər (ikinci şah, son sırada piyada,
      * 8-dən çox piyada) ikinci ən yaxşı variantla düzəldilir. Mümkün deyilsə null.
      */
-    fun read(s: Scan, t: Templates, prevWhiteBottom: Boolean): Reading? {
+    fun read(
+        s: Scan,
+        t: Templates,
+        prevWhiteBottom: Boolean,
+        detectOrientation: Boolean = false
+    ): Reading? {
         val info = s.info
         val scores = Array(8) { arrayOfNulls<FloatArray>(8) }
         val pick = Array(8) { CharArray(8) { '.' } }
@@ -714,11 +721,14 @@ object BoardReader {
         }
         if (wN == 0 || bN == 0) return null
         val delta = wRows / wN - bRows / bN
-        val whiteBottom = when {
+        // Orientation is calibrated once and then locked. Re-inferring it from moving pieces
+        // every frame can flip the board after pawns advance or material is captured.
+        val inferredWhiteBottom = when {
             delta > 0.6f -> true
             delta < -0.6f -> false
             else -> prevWhiteBottom
         }
+        val whiteBottom = if (detectOrientation) inferredWhiteBottom else prevWhiteBottom
         fun rankOf(row: Int) = if (whiteBottom) 7 - row else row
 
         fun reassign(row: Int, col: Int, banned: String) {
@@ -838,26 +848,57 @@ object BoardReader {
             if (empty > 0) sb.append(empty)
             if (rank > 0) sb.append('/')
         }
-        return Reading(sb.toString(), whiteBottom, side, ep, pick, weak)
+        return Reading(sb.toString(), whiteBottom, side, ep, pick, weak, wAll + bAll)
     }
 
     // ---------------------------------------------------------------- köməkçilər
 
-    /** Rokirovka hüquqları yalnız itə bilər: kral və ya qala yerindən çıxıbsa hüquq silinir. */
+    private const val START_PLACEMENT =
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+
+    fun isInitialPosition(placement: String): Boolean = placement == START_PLACEMENT
+
+    /**
+     * Castling rights are monotonic: once the original king/rook leaves its home square,
+     * the corresponding right is permanently removed, even if a piece later returns there.
+     */
+    fun updateCastling(old: String, previous: String, current: String): String {
+        if (old == "-") return "-"
+        val keep = StringBuilder()
+        for (right in old) {
+            val kingSquare = if (right.isUpperCase()) "e1" else "e8"
+            val rookSquare = when (right) {
+                'K' -> "h1"
+                'Q' -> "a1"
+                'k' -> "h8"
+                'q' -> "a8"
+                else -> continue
+            }
+            val king = if (right.isUpperCase()) 'K' else 'k'
+            val rook = if (right.isUpperCase()) 'R' else 'r'
+            val kingStayed = pieceAt(previous, kingSquare) == king &&
+                pieceAt(current, kingSquare) == king
+            val rookStayed = pieceAt(previous, rookSquare) == rook &&
+                pieceAt(current, rookSquare) == rook
+            if (kingStayed && rookStayed) keep.append(right)
+        }
+        return if (keep.isEmpty()) "-" else keep.toString()
+    }
+
+    /** Compatibility helper; current position alone cannot restore historical castling rights. */
     fun updateCastling(placement: String, old: String): String {
         if (old == "-") return "-"
-        val wk = pieceAt(placement, "e1") == 'K'
-        val bk = pieceAt(placement, "e8") == 'k'
         val keep = StringBuilder()
-        for (c in old) {
-            val ok = when (c) {
-                'K' -> wk && pieceAt(placement, "h1") == 'R'
-                'Q' -> wk && pieceAt(placement, "a1") == 'R'
-                'k' -> bk && pieceAt(placement, "h8") == 'r'
-                'q' -> bk && pieceAt(placement, "a8") == 'r'
-                else -> false
+        for (right in old) {
+            val kingSquare = if (right.isUpperCase()) "e1" else "e8"
+            val rookSquare = when (right) {
+                'K' -> "h1"; 'Q' -> "a1"; 'k' -> "h8"; 'q' -> "a8"; else -> continue
             }
-            if (ok) keep.append(c)
+            val king = if (right.isUpperCase()) 'K' else 'k'
+            val rook = if (right.isUpperCase()) 'R' else 'r'
+            if (pieceAt(placement, kingSquare) == king && pieceAt(placement, rookSquare) == rook) {
+                keep.append(right)
+            }
         }
         return if (keep.isEmpty()) "-" else keep.toString()
     }

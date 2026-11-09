@@ -115,11 +115,17 @@ jobs:
 
           echo "$HOME/gradle-8.7/bin" >> "$GITHUB_PATH"
 
+      # Run JVM unit tests before packaging the APK
+      - name: Run unit tests
+        shell: bash
+        run: |
+          gradle --version
+          gradle :app:testDebugUnitTest --stacktrace
+
       # Build debug APK
       - name: Build APK
         shell: bash
         run: |
-          gradle --version
           gradle :app:assembleDebug --stacktrace
 
       # Upload APK
