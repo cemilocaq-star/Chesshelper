@@ -2,6 +2,7 @@ package az.chesshelper
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -82,7 +83,7 @@ class BoardStateTest {
     @Test
     fun nonInitialPositionDoesNotGuessSideToMoveWithoutHighlights() {
         val afterE4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
-        assertEquals(null, BoardReader.defaultSideToMove(afterE4))
+        assertNull(BoardReader.defaultSideToMove(afterE4))
     }
 
 }
