@@ -282,6 +282,7 @@ class OverlayService : Service() {
 
         btn("Avtomatik başlat") { startAutomaticAnalysis() }
         btn("Dayandır") { autoRunning = false; say("Avtomatik analiz dayandırıldı") }
+        btn("Yeni oyun") { resetGameSession() }
         val sideButton = Button(this).apply {
             textSize = 12f
             isAllCaps = false
@@ -521,6 +522,22 @@ class OverlayService : Service() {
 
     private fun setSideButtonLabel(button: Button) {
         button.text = "Növbə: ${when (sideOverride) { 'w' -> "Ağ"; 'b' -> "Qara"; else -> "Avtomatik" }}"
+    }
+
+    private fun resetGameSession() {
+        autoRunning = false
+        previousPlacement = null
+        castling = "-"
+        castlingKnown = false
+        orientationKnown = false
+        lastBoard = null
+        lastAnalyzedPositionKey = null
+        candidatePositionKey = null
+        stableFrameCount = 0
+        getSharedPreferences("chess", MODE_PRIVATE).edit()
+            .remove("white_bottom")
+            .apply()
+        say("Yeni oyun rejimi hazırdır. Taxta başlanğıc mövqeyində olanda Avtomatik başlat seç.")
     }
 
     private fun startAutomaticAnalysis() {
