@@ -819,7 +819,9 @@ class OverlayService : Service() {
             "Taxta: x=${snap.board.x}, y=${snap.board.y}, " +
                 "${snap.board.size}×${snap.board.size}px · " +
                 "${snap.frameWidth}×${snap.frameHeight}px ekran · " +
-                "${snap.reading.occupiedCount} fiqur · $n şübhəli xana"
+                "${snap.reading.occupiedCount} fiqur · $n şübhəli xana · " +
+                "növbə: ${snap.reading.sideToMove ?: "naməlum"}\n" +
+                "FEN: ${snap.reading.placement}"
         )
     }
 
