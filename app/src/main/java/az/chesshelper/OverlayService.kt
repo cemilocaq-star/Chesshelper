@@ -62,6 +62,7 @@ class OverlayService : Service() {
     @Volatile private var engine: Engine? = null
     private var memeTts: TextToSpeech? = null
     private var previousSideToMove: Char? = null
+    private var placementBeforePrevious: String? = null
     @Volatile private var destroyed = false
 
     private var panel: View? = null
@@ -508,6 +509,7 @@ class OverlayService : Service() {
         stopAutomaticAnalysis()
         previousPlacement = null
         previousSideToMove = null
+        placementBeforePrevious = null
         castling = "-"
         castlingKnown = false
         orientationKnown = false
@@ -848,9 +850,12 @@ class OverlayService : Service() {
         // Castling rights are known only when this session observed the initial position.
         // Thereafter they can only be removed when the original king/rook leaves its home square.
         val previous = previousPlacement
+        val beforePrevious = placementBeforePrevious
         val sideBefore = previousSideToMove
-        if (previous != null && sideBefore != null &&
-            RookSacrificeDetector.wasRookCaptured(previous, reading.placement, sideBefore)
+        if (beforePrevious != null && previous != null && sideBefore != null &&
+            RookSacrificeDetector.wasRookSacrificed(
+                beforePrevious, previous, reading.placement, sideBefore
+            )
         ) announceRookMeme()
         if (previous == null) {
             if (BoardReader.isInitialPosition(reading.placement)) {
@@ -863,6 +868,7 @@ class OverlayService : Service() {
         } else if (castlingKnown) {
             castling = BoardReader.updateCastling(castling, previous, reading.placement)
         }
+        placementBeforePrevious = previous
         previousPlacement = reading.placement
         previousSideToMove = reading.sideToMove
         lastRecognitionMs = SystemClock.elapsedRealtime() - recognitionStarted
