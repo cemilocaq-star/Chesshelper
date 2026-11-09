@@ -179,11 +179,8 @@ class OverlayService : Service() {
         val prefs = getSharedPreferences("chess", MODE_PRIVATE)
         whiteBottom = prefs.getBoolean("white_bottom", true)
         orientationKnown = prefs.contains("white_bottom")
-        sideOverride = when (getSharedPreferences("chess", MODE_PRIVATE).getString("side_override", "auto")) {
-            "white" -> 'w'
-            "black" -> 'b'
-            else -> null
-        }
+        // Manual side selection is deliberately session-local and one-shot.
+        sideOverride = null
 
         analysisTimeSeconds = getSharedPreferences("chess", MODE_PRIVATE).getInt("analysis_time_seconds", 3).coerceIn(1, 30)
         targetElo = getSharedPreferences("chess", MODE_PRIVATE).getInt("target_elo", 2000).coerceIn(1320, 3000)
@@ -282,8 +279,6 @@ class OverlayService : Service() {
             setSideButtonLabel(this)
             setOnClickListener {
                 sideOverride = when (sideOverride) { null -> 'w'; 'w' -> 'b'; else -> null }
-                getSharedPreferences("chess", MODE_PRIVATE).edit()
-                    .putString("side_override", when (sideOverride) { 'w' -> "white"; 'b' -> "black"; else -> "auto" }).apply()
                 setSideButtonLabel(this)
             }
         }
@@ -546,7 +541,6 @@ class OverlayService : Service() {
         orientationKnown = false
         sideOverride = null
         getSharedPreferences("chess", MODE_PRIVATE).edit()
-            .putString("side_override", "auto")
             .remove("white_bottom")
             .apply()
         sideButtonControl?.let { setSideButtonLabel(it) }
@@ -860,7 +854,8 @@ class OverlayService : Service() {
         val board = snap.board
         val reading = snap.reading
         val castField = if (castlingKnown) castling else "-"
-        val stm = sideOverride ?: reading.sideToMove
+        val usedManualSide = sideOverride
+        val stm = usedManualSide ?: reading.sideToMove
         if (stm == null) {
             say("Növbə müəyyən edilmədi. Son gediş işarəsini yoxla və ya Növbə düyməsindən Ağ/Qara seç.")
             return
@@ -910,6 +905,10 @@ class OverlayService : Service() {
         lastEngineMs = SystemClock.elapsedRealtime() - engineStarted
         addMetric(engineSamples, lastEngineMs)
         lastAnalyzedPositionKey = positionKey
+        if (usedManualSide != null) {
+            sideOverride = null
+            sideButtonControl?.let { setSideButtonLabel(it) }
+        }
         SessionStore.append(this, MoveRecord(fen, move, System.currentTimeMillis(), lastPieceCoverage, snap.recognitionMs, lastEngineMs))
         val from = move.substring(0, 2)
         val to = move.substring(2, 4)
