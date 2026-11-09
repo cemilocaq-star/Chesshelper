@@ -843,21 +843,52 @@ object BoardReader {
 
     // ---------------------------------------------------------------- köməkçilər
 
-    /** Rokirovka hüquqları yalnız itə bilər: kral və ya qala yerindən çıxıbsa hüquq silinir. */
+    private const val START_PLACEMENT =
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+
+    fun isInitialPosition(placement: String): Boolean = placement == START_PLACEMENT
+
+    /**
+     * Castling rights are monotonic: once the original king/rook leaves its home square,
+     * the corresponding right is permanently removed, even if a piece later returns there.
+     */
+    fun updateCastling(old: String, previous: String, current: String): String {
+        if (old == "-") return "-"
+        val keep = StringBuilder()
+        for (right in old) {
+            val kingSquare = if (right.isUpperCase()) "e1" else "e8"
+            val rookSquare = when (right) {
+                'K' -> "h1"
+                'Q' -> "a1"
+                'k' -> "h8"
+                'q' -> "a8"
+                else -> continue
+            }
+            val king = if (right.isUpperCase()) 'K' else 'k'
+            val rook = if (right.isUpperCase()) 'R' else 'r'
+            val kingStayed = pieceAt(previous, kingSquare) == king &&
+                pieceAt(current, kingSquare) == king
+            val rookStayed = pieceAt(previous, rookSquare) == rook &&
+                pieceAt(current, rookSquare) == rook
+            if (kingStayed && rookStayed) keep.append(right)
+        }
+        return if (keep.isEmpty()) "-" else keep.toString()
+    }
+
+    /** Compatibility helper; current position alone cannot restore historical castling rights. */
     fun updateCastling(placement: String, old: String): String {
         if (old == "-") return "-"
-        val wk = pieceAt(placement, "e1") == 'K'
-        val bk = pieceAt(placement, "e8") == 'k'
         val keep = StringBuilder()
-        for (c in old) {
-            val ok = when (c) {
-                'K' -> wk && pieceAt(placement, "h1") == 'R'
-                'Q' -> wk && pieceAt(placement, "a1") == 'R'
-                'k' -> bk && pieceAt(placement, "h8") == 'r'
-                'q' -> bk && pieceAt(placement, "a8") == 'r'
-                else -> false
+        for (right in old) {
+            val kingSquare = if (right.isUpperCase()) "e1" else "e8"
+            val rookSquare = when (right) {
+                'K' -> "h1"; 'Q' -> "a1"; 'k' -> "h8"; 'q' -> "a8"; else -> continue
             }
-            if (ok) keep.append(c)
+            val king = if (right.isUpperCase()) 'K' else 'k'
+            val rook = if (right.isUpperCase()) 'R' else 'r'
+            if (pieceAt(placement, kingSquare) == king && pieceAt(placement, rookSquare) == rook) {
+                keep.append(right)
+            }
         }
         return if (keep.isEmpty()) "-" else keep.toString()
     }
