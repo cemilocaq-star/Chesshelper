@@ -73,4 +73,16 @@ class BoardStateTest {
         assertEquals(458f + 7.5f * square, h8.second, 0.01f)
     }
 
+
+    @Test
+    fun initialPositionDefaultsToWhiteToMoveWithoutLastMoveHighlights() {
+        assertEquals('w', BoardReader.defaultSideToMove(start))
+    }
+
+    @Test
+    fun nonInitialPositionDoesNotGuessSideToMoveWithoutHighlights() {
+        val afterE4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        assertEquals(null, BoardReader.defaultSideToMove(afterE4))
+    }
+
 }
