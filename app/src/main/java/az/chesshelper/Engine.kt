@@ -104,17 +104,14 @@ class Engine(ctx: Context) : AutoCloseable {
         }
     }
 
-    @Synchronized
+    /** Closing is intentionally not synchronized with best(): destroy() must unblock a stalled read. */
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         try {
-            if (proc.isAlive) {
-                out.write("quit")
-                out.newLine()
-                out.flush()
-            }
-        } catch (_: Exception) { }
-        proc.destroy()
-        if (proc.isAlive) proc.destroyForcibly()
+            proc.destroy()
+            if (proc.isAlive) proc.destroyForcibly()
+        } catch (_: Exception) {
+            try { proc.destroyForcibly() } catch (_: Exception) { }
+        }
     }
 }
