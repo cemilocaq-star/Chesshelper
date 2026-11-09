@@ -6,6 +6,8 @@ THEMES = {
     "brown": ((240, 217, 181), (181, 136, 99)),
     "blue":  ((222, 227, 230), (140, 162, 173)),
     "gray":  ((232, 232, 232), (150, 150, 150)),
+    # Approximate Chess.com dark blue-gray board colors measured from the supplied screenshot.
+    "chesscom": ((102, 114, 130), (37, 45, 58)),
 }
 FONTS = {
     "dejavu": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
