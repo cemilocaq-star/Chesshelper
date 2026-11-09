@@ -62,6 +62,7 @@ class OverlayService : Service() {
 
     private var panel: View? = null
     private var bubble: TextView? = null
+    private var sideButtonControl: Button? = null
     private var arrow: ArrowView? = null
     private var status: TextView? = null
 
@@ -284,6 +285,7 @@ class OverlayService : Service() {
                 setSideButtonLabel(this)
             }
         }
+        sideButtonControl = sideButton
         p.addView(sideButton)
         btn("Yoxla") { if (!busy) scope.launch { guarded { inspect() } } }
         btn("Şablonu yenilə") { if (!busy) scope.launch { guarded { calibrate() } } }
@@ -526,13 +528,16 @@ class OverlayService : Service() {
         castling = "-"
         castlingKnown = false
         orientationKnown = false
+        sideOverride = null
+        getSharedPreferences("chess", MODE_PRIVATE).edit()
+            .putString("side_override", "auto")
+            .remove("white_bottom")
+            .apply()
+        sideButtonControl?.let { setSideButtonLabel(it) }
         lastBoard = null
         lastAnalyzedPositionKey = null
         candidatePositionKey = null
         stableFrameCount = 0
-        getSharedPreferences("chess", MODE_PRIVATE).edit()
-            .remove("white_bottom")
-            .apply()
         say("Yeni oyun rejimi hazırdır. Taxta başlanğıc mövqeyində olanda Avtomatik başlat seç.")
     }
 
