@@ -52,6 +52,7 @@ class OverlayService : Service() {
     @Volatile private var lastFrameAt = 0L
 
     private var panel: LinearLayout? = null
+    private var bubble: TextView? = null
     private var arrow: ArrowView? = null
     private var status: TextView? = null
 
@@ -68,6 +69,8 @@ class OverlayService : Service() {
     private var maxEngineStrength = false
     @Volatile private var autoRunning = false
     private var lastAnalyzedPlacement: String? = null
+    private var candidatePlacement: String? = null
+    private var stableFrameCount = 0
     private var lastRecognitionMs = 0L
     private var lastEngineMs = 0L
     private var lastConfidence = 0
@@ -178,7 +181,13 @@ class OverlayService : Service() {
             val pad = (6 * dp).toInt()
             setPadding(pad, pad, pad, pad)
             background = GradientDrawable().apply {
-                setColor(Color.argb(200, 20, 20, 20))
+                val theme = getSharedPreferences("chess", MODE_PRIVATE).getString("theme", "dark")
+                val color = when (theme) {
+                    "midnight" -> Color.rgb(10, 22, 48)
+                    "amoled" -> Color.BLACK
+                    else -> Color.rgb(20, 20, 20)
+                }
+                setColor(Color.argb(225, Color.red(color), Color.green(color), Color.blue(color)))
                 cornerRadius = 12 * dp
             }
         }
@@ -291,6 +300,62 @@ class OverlayService : Service() {
 
         panel = p
         wm.addView(p, lp)
+
+        // 48dp circular quick-toggle bubble; dragging moves it, tapping opens/closes the full panel.
+        val bubbleView = TextView(this).apply {
+            text = "♟"
+            textSize = 22f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.rgb(0, 150, 120))
+                setStroke((1 * dp).toInt(), Color.argb(220, 180, 255, 240))
+            }
+        }
+        bubble = bubbleView
+        val blp = WindowManager.LayoutParams(
+            (48 * dp).toInt(), (48 * dp).toInt(),
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = (12 * dp).toInt()
+            y = (220 * dp).toInt()
+        }
+        var downX = 0f
+        var downY = 0f
+        var startX = 0
+        var startY = 0
+        var moved = false
+        bubbleView.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.rawX; downY = event.rawY
+                    startX = blp.x; startY = blp.y; moved = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = (event.rawX - downX).toInt()
+                    val dy = (event.rawY - downY).toInt()
+                    if (kotlin.math.abs(dx) > 6 || kotlin.math.abs(dy) > 6) moved = true
+                    blp.x = startX + dx; blp.y = startY + dy
+                    wm.updateViewLayout(view, blp)
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!moved) {
+                        val showing = p.visibility == View.VISIBLE
+                        p.visibility = if (showing) View.GONE else View.VISIBLE
+                        bubbleView.alpha = if (showing) 1f else 0.75f
+                    }
+                    true
+                }
+                else -> true
+            }
+        }
+        wm.addView(bubbleView, blp)
     }
 
     private fun showAnalysisTimeDialog(button: Button) {
@@ -546,9 +611,21 @@ class OverlayService : Service() {
         val snap = snapshot() ?: return
         val board = snap.board
         val reading = snap.reading
-        if (autoRunning && lastAnalyzedPlacement == reading.placement) {
-            say("Mövqe dəyişməyib · Confidence: ${lastConfidence}%")
-            return
+        if (autoRunning) {
+            if (candidatePlacement == reading.placement) {
+                stableFrameCount++
+            } else {
+                candidatePlacement = reading.placement
+                stableFrameCount = 1
+            }
+            if (stableFrameCount < 2) {
+                say("Mövqe ikinci kadrla təsdiqlənir…")
+                return
+            }
+            if (lastAnalyzedPlacement == reading.placement) {
+                say("Mövqe dəyişməyib · Confidence: ${lastConfidence}%")
+                return
+            }
         }
 
         val castField = if (castlingKnown) {
@@ -588,6 +665,7 @@ class OverlayService : Service() {
         scope.cancel()
         try {
             panel?.let { wm.removeView(it) }
+            bubble?.let { wm.removeView(it) }
             arrow?.let { wm.removeView(it) }
         } catch (_: Exception) {
         }
