@@ -38,6 +38,16 @@ class Engine(ctx: Context) {
         }
     }
 
+    /** Stockfish gücünü seçilmiş ELO səviyyəsinə məhdudlaşdırır. */
+    @Synchronized
+    fun configureStrength(elo: Int) {
+        val safeElo = elo.coerceIn(1320, 3000)
+        send("setoption name UCI_LimitStrength value true")
+        send("setoption name UCI_Elo value $safeElo")
+        send("isready")
+        waitFor("readyok")
+    }
+
     /** FEN üçün ən yaxşı gedişi qaytarır, məsələn "e2e4". */
     @Synchronized
     fun best(fen: String, moveTimeMs: Int = 800): String? {
