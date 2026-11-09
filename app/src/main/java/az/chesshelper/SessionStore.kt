@@ -79,7 +79,7 @@ object SessionStore {
                 appendLine("[Result \"*\"]")
                 appendLine()
                 append(san)
-                append(" {UCI=${item.uci}; square-coverage=${item.pieceCoverage}%; recognition=${item.recognitionMs}ms; engine=${item.engineMs}ms} *")
+                append(" {UCI=${item.uci}; strong-piece-recognition=${item.pieceCoverage}%; recognition=${item.recognitionMs}ms; engine=${item.engineMs}ms} *")
                 appendLine()
             }
         }
