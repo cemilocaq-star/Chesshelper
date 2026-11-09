@@ -125,7 +125,16 @@ class MainActivity : Activity() {
             val i = Intent(this, OverlayService::class.java)
                 .putExtra("code", resultCode)
                 .putExtra("data", data)
-            startForegroundService(i)
+            try {
+                startForegroundService(i)
+            } catch (e: Exception) {
+                android.util.Log.e("ChessHelper", "Could not start overlay service", e)
+                android.widget.Toast.makeText(
+                    this,
+                    "Xidmət başladılmadı: ${e.localizedMessage ?: e.javaClass.simpleName}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 }
