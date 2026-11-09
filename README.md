@@ -14,6 +14,14 @@ Gediş belə göstərilir: çıxış xanasında halqa, ox və hədəf xanada par
 
 Panelin yazısından tutub sürüşdürə bilərsən.
 
+## Təhlil parametrləri
+
+Üzən paneldə **Təhlil vaxtı** düyməsi ilə hər mövqe üçün 1, 2, 3, 5, 10, 15 və ya 30 saniyə seçilə bilər.
+**Mühərrik ELO-su** düyməsi Stockfish-in gücünü 1320–3000 aralığında 100 ELO addımları ilə məhdudlaşdırır.
+Seçilmiş parametrlər cihazda yadda saxlanılır və növbəti açılışda bərpa olunur.
+Bu parametrlər mühərrikin təhlil gücünü və düşünmə müddətini dəyişir; göstərilən ELO real oyun reytinqinə zəmanət vermir.
+
+
 ## Fiqur tanıma necə işləyir
 
 1. **Taxta tapma:** ekrandakı iki dominant rəng 8x8 şahmat düzülüşünə görə tapılır, mövzu siyahısı yoxdur.
