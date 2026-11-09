@@ -140,16 +140,27 @@ class Engine(ctx: Context) : AutoCloseable {
                     return move?.takeIf { it.matches(Regex("[a-h][1-8][a-h][1-8][qrbn]?")) }
                 }
             }
-        } catch (_: Exception) {
-            try {
-                stopSearch()
-                waitFor("bestmove", 2_000, allowStopRequested = true)
-            } catch (_: Exception) {
-                close()
-            }
-            return null
+        } catch (e: java.util.concurrent.CancellationException) {
+            recoverAfterFailedSearch()
+            throw e
+        } catch (e: Exception) {
+            recoverAfterFailedSearch()
+            throw e
         } finally {
             searching = false
+        }
+    }
+
+    /**
+     * Stop a failed search and consume its terminal bestmove so the next UCI command
+     * cannot accidentally read a stale response. If recovery fails, retire the process.
+     */
+    private fun recoverAfterFailedSearch() {
+        try {
+            stopSearch()
+            waitFor("bestmove", 2_000, allowStopRequested = true)
+        } catch (_: Exception) {
+            close()
         }
     }
 
