@@ -132,6 +132,16 @@ def calibrate(sc):
             ch = line[c]
             t.s[ch].append((sc[r][c].edges, sc[r][c].maskv))
             (wl if ch.isupper() else bl).append(sc[r][c].fill)
+    # Match the Android implementation: a piece may already have moved from
+    # its home square or one glyph may be missed by occupancy detection. Reuse
+    # the opposite-colour template for the same silhouette before rejecting the
+    # calibration; colour is classified independently using fill luminance.
+    for p in PIECES:
+        if not t.s[p]:
+            counterpart = p.lower() if p.isupper() else p.upper()
+            if t.s[counterpart]:
+                t.s[p] = list(t.s[counterpart])
+
     if not wl or not bl or any(len(t.s[p]) == 0 for p in PIECES):
         return None
     t.thr = (np.mean(wl) + np.mean(bl)) / 2
