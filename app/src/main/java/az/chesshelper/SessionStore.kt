@@ -85,12 +85,11 @@ object SessionStore {
         }
     }
 
-    /** UCI command pairs; each bestmove is tied to the FEN that produced it. */
+    /** Coordinate notation export; every UCI move is associated with its root FEN comment. */
     fun toUci(context: Context): String = buildString {
         read(context).forEach { item ->
-            appendLine("# ChessHelper engine suggestion")
-            appendLine("position fen ${item.fen}")
-            appendLine("bestmove ${item.uci}")
+            appendLine("# FEN ${item.fen}")
+            appendLine(item.uci)
             appendLine()
         }
     }
