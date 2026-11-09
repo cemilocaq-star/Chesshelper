@@ -71,9 +71,11 @@ def render(grid, theme, font, white_bottom=True, last=None, hints=(), capring=()
             cx = origin[0] + sc * S + S / 2
             cy = origin[1] + sr * S + S / 2
             white = ch.isupper()
+            black_fill = (0, 0, 0) if theme == "chesscom" else (58, 58, 58)
+            black_stroke = (0, 0, 0) if theme == "chesscom" else (8, 8, 8)
             d.text((cx, cy), GLYPH[ch.lower()], font=ft, anchor="mm",
-                   fill=(250, 250, 250) if white else (58, 58, 58),
-                   stroke_width=2, stroke_fill=(40, 40, 40) if white else (8, 8, 8))
+                   fill=(250, 250, 250) if white else black_fill,
+                   stroke_width=2, stroke_fill=(40, 40, 40) if white else black_stroke)
     return img
 
 def random_position(rng, white_bottom=True):
