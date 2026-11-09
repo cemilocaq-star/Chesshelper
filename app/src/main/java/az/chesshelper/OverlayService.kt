@@ -866,6 +866,7 @@ class OverlayService : Service() {
         val useMaximumStrength = maxEngineStrength
         val requestedMoveTimeMs = analysisTimeMs
         val engineStarted = SystemClock.elapsedRealtime()
+        var engineFailureReason: String? = null
         val move = try {
             withContext(Dispatchers.IO) {
                 eng.configureStrength(requestedElo, useMaximumStrength)
@@ -873,11 +874,31 @@ class OverlayService : Service() {
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            engineFailureReason = e.message ?: e.javaClass.simpleName
             null
         } ?: run {
             engineFailures++
-            return say("Mühərrik gediş qaytarmadı")
+            // Do not retry a failed/empty engine result every 900 ms. Repeated retries
+            // were causing repeated screen captures (and the panel hide/show flicker).
+            if (autoRunning) {
+                autoRunning = false
+                autoGeneration++
+                autoJob = null
+                engine?.stopSearch()
+                say(
+                    "Gediş tapılmadı — avtomatik analiz dayandırıldı. " +
+                        (engineFailureReason ?: "Stockfish mövqe üçün gediş qaytarmadı") +
+                        ". Taxtanı və FEN-i Yoxla düyməsi ilə yoxla."
+                )
+            } else {
+                say(
+                    "Gediş tapılmadı: " +
+                        (engineFailureReason ?: "Stockfish mövqe üçün gediş qaytarmadı") +
+                        ". Taxtanı və FEN-i yoxla."
+                )
+            }
+            return
         }
 
         val san = ChessNotation.sanFor(fen, move)
