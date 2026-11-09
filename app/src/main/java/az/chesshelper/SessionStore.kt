@@ -59,28 +59,39 @@ object SessionStore {
         }
     }
 
-    /** Keeps coordinate notation verbatim; it does not invent SAN moves. */
+    /**
+     * Exports every engine recommendation as its own valid one-move PGN game rooted at its FEN.
+     * These are independent suggestions, not a fabricated record of moves actually played.
+     */
     fun toPgn(context: Context): String {
         val items = read(context)
         val date = java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US)
             .format(java.util.Date())
         return buildString {
-            appendLine("[Event \"ChessHelper analysis\"]")
-            appendLine("[Site \"Local device\"]")
-            appendLine("[Date \"$date\"]")
-            appendLine("[Result \"*\"]")
-            appendLine()
             items.forEachIndexed { index, item ->
-                appendLine("{ ply=${index + 1}; UCI=${item.uci}; FEN=${item.fen}; confidence=${item.confidence}%; recognition=${item.recognitionMs}ms; engine=${item.engineMs}ms }")
+                val san = ChessNotation.sanWithMoveNumber(item.fen, item.uci) ?: return@forEachIndexed
+                if (isNotEmpty()) appendLine().appendLine()
+                appendLine("[Event \"ChessHelper engine recommendation ${index + 1}\"]")
+                appendLine("[Site \"Local device\"]")
+                appendLine("[Date \"$date\"]")
+                appendLine("[SetUp \"1\"]")
+                appendLine("[FEN \"${item.fen}\"]")
+                appendLine("[Result \"*\"]")
+                appendLine()
+                append(san)
+                append(" {UCI=${item.uci}; square-coverage=${item.confidence}%; recognition=${item.recognitionMs}ms; engine=${item.engineMs}ms} *")
+                appendLine()
             }
-            appendLine("*")
         }
     }
 
+    /** UCI command pairs; each bestmove is tied to the FEN that produced it. */
     fun toUci(context: Context): String = buildString {
         read(context).forEach { item ->
-            append(item.uci)
-            append('\n')
+            appendLine("# ChessHelper engine suggestion")
+            appendLine("position fen ${item.fen}")
+            appendLine("bestmove ${item.uci}")
+            appendLine()
         }
     }
 }
