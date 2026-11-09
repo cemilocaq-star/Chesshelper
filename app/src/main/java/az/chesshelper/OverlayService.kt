@@ -566,7 +566,7 @@ class OverlayService : Service() {
     private fun showHistory() {
         val items = SessionStore.read(this).takeLast(20).asReversed()
         val message = if (items.isEmpty()) "Hələ analiz tarixçəsi yoxdur" else items.mapIndexed { i, item ->
-            "${i + 1}. ${item.uci} · xana əhatəsi ${item.pieceCoverage}% · ${item.engineMs} ms"
+            "${i + 1}. ${item.uci} · güclü fiqur tanınması ${item.pieceCoverage}% · ${item.engineMs} ms"
         }.joinToString("\n")
         val dialog = AlertDialog.Builder(this).setTitle("Son analiz təklifləri").setMessage(message)
             .setPositiveButton("Bağla", null).create()
