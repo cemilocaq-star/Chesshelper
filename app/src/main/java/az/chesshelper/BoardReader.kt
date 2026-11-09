@@ -615,7 +615,7 @@ object BoardReader {
         val layout = if (whiteBottom) {
             mapOf(0 to "rnbqkbnr", 1 to "pppppppp", 6 to "PPPPPPPP", 7 to "RNBQKBNR")
         } else {
-            mapOf(0 to "RNBKQBNR", 1 to "PPPPPPPP", 6 to "pppppppp", 7 to "rnbkqbnr")
+            mapOf(0 to "RNBQKBNR", 1 to "PPPPPPPP", 6 to "pppppppp", 7 to "rnbqkbnr")
         }
 
         val map = HashMap<Char, ArrayList<Sample>>()
