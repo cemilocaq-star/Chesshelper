@@ -445,8 +445,8 @@ class OverlayService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!moved) {
-                        val showing = p.visibility == View.VISIBLE
-                        p.visibility = if (showing) View.GONE else View.VISIBLE
+                        val showing = scroll.visibility == View.VISIBLE
+                        scroll.visibility = if (showing) View.GONE else View.VISIBLE
                         bubbleView.alpha = if (showing) 1f else 0.75f
                     }
                     true
