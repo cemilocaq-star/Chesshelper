@@ -61,6 +61,8 @@ class OverlayService : Service() {
     @Volatile private var destroyed = false
 
     private var panel: View? = null
+    private var panelLayoutParams: WindowManager.LayoutParams? = null
+    private var panelExpandedHeight = 0
     private var bubble: TextView? = null
     private var sideButtonControl: Button? = null
     private var arrow: ArrowView? = null
@@ -350,9 +352,10 @@ class OverlayService : Service() {
         }
         applyPanelTheme(p)
 
+        panelExpandedHeight = (resources.displayMetrics.heightPixels * 0.68f).toInt()
         val lp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
-            (resources.displayMetrics.heightPixels * 0.68f).toInt(),
+            panelExpandedHeight,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
@@ -385,6 +388,7 @@ class OverlayService : Service() {
         }
 
         panel = scroll
+        panelLayoutParams = lp
         wm.addView(scroll, lp)
 
         // 48dp circular quick-toggle bubble; dragging moves it, tapping opens/closes the full panel.
@@ -435,9 +439,14 @@ class OverlayService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!moved) {
-                        val showing = scroll.visibility == View.VISIBLE
-                        scroll.visibility = if (showing) View.GONE else View.VISIBLE
-                        bubbleView.alpha = if (showing) 1f else 0.75f
+                        val params = panelLayoutParams
+                        if (params != null) {
+                            val showing = params.height > 0
+                            params.height = if (showing) 0 else panelExpandedHeight
+                            scroll.visibility = if (showing) View.GONE else View.VISIBLE
+                            wm.updateViewLayout(scroll, params)
+                            bubbleView.alpha = if (showing) 1f else 0.75f
+                        }
                     }
                     true
                 }
@@ -639,7 +648,13 @@ class OverlayService : Service() {
         arrow?.clear()
         val previousPanelVisibility = panel?.visibility
         val previousBubbleVisibility = bubble?.visibility
+        val params = panelLayoutParams
+        val previousPanelHeight = params?.height
         panel?.visibility = View.INVISIBLE
+        if (params != null && params.height > 0) {
+            params.height = 0
+            panel?.let { wm.updateViewLayout(it, params) }
+        }
         bubble?.visibility = View.INVISIBLE
         try {
             // Wait for one fresh frame after hiding the controls. Do not wait for a "quiet"
@@ -675,6 +690,10 @@ class OverlayService : Service() {
                 }
             }
         } finally {
+            if (params != null && previousPanelHeight != null) {
+                params.height = previousPanelHeight
+                panel?.let { wm.updateViewLayout(it, params) }
+            }
             panel?.visibility = previousPanelVisibility ?: View.VISIBLE
             bubble?.visibility = previousBubbleVisibility ?: View.VISIBLE
         }
