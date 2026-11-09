@@ -289,7 +289,7 @@ class OverlayService : Service() {
         btn("Şablonu yenilə") { if (!busy) scope.launch { guarded { calibrate() } } }
         btn("Daha çox") {
             val options = arrayOf("Analiz tarixçəsi", "PGN tövsiyə ixracı", "UCI ixracı", "Performans", "Bağla")
-            AlertDialog.Builder(this)
+            val dialog = AlertDialog.Builder(this)
                 .setTitle("Əlavə funksiyalar")
                 .setItems(options) { _, which ->
                     when (which) {
@@ -299,8 +299,8 @@ class OverlayService : Service() {
                         3 -> showPerformance()
                         4 -> stopSelf()
                     }
-                }
-                .show()
+                }.create()
+            showServiceDialog(dialog)
         }
 
 
