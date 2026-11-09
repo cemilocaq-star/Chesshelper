@@ -124,13 +124,13 @@ class MainActivity : Activity() {
                         0 -> saveThinkingMode("fast", 1)
                         1 -> saveThinkingMode("balanced", 3)
                         2 -> saveThinkingMode("deep", 10)
-                        3 -> showCustomThinkingDialog(prefs.getInt("analysis_time_seconds", 3))
+                        3 -> showCustomThinkingDialog(prefs.getInt("analysis_time_seconds", 3)) { refreshSummary() }
                     }
                     refreshSummary()
                 }.show()
         }
         addSettingButton("Xüsusi rejimi tənzimlə") {
-            showCustomThinkingDialog(prefs.getInt("analysis_time_seconds", 3))
+            showCustomThinkingDialog(prefs.getInt("analysis_time_seconds", 3)) { refreshSummary() }
         }
         addSettingButton("Mövzu") {
             val themes = arrayOf("Dark", "Midnight Blue", "AMOLED")
@@ -157,7 +157,7 @@ class MainActivity : Activity() {
             .apply()
     }
 
-    private fun showCustomThinkingDialog(initialSeconds: Int) {
+    private fun showCustomThinkingDialog(initialSeconds: Int, onSaved: () -> Unit = {}) {
         val input = android.widget.EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             hint = "1–30 saniyə"
@@ -184,6 +184,7 @@ class MainActivity : Activity() {
                     android.widget.Toast.makeText(this, "1–30 saniyə arası dəyər daxil et", android.widget.Toast.LENGTH_LONG).show()
                 } else {
                     saveThinkingMode("custom", seconds)
+                    onSaved()
                     android.widget.Toast.makeText(this, "Xüsusi rejim yadda saxlanıldı: ${seconds}s", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }.show()
