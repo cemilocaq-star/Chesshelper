@@ -61,11 +61,18 @@ class ArrowView(c: Context) : View(c) {
         color = Color.rgb(255, 60, 60)
         style = Paint.Style.STROKE
     }
+    private val boardGuide = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(190, 0, 255, 190)
+        style = Paint.Style.STROKE
+        strokeWidth = 2f
+    }
 
     // "Yoxla" rejimi: oxunmuş taxtanı üstünə çəkir
     private var boardRect: BoardRect? = null
     private var screenGrid: Array<CharArray>? = null
     private var weakSquares: Set<Int> = emptySet()
+    private var sourceWidth = 0
+    private var sourceHeight = 0
 
     private val shapes = HashMap<Char, Path>()
     private val tmp = Path()
@@ -88,9 +95,11 @@ class ArrowView(c: Context) : View(c) {
     private val autoClear = Runnable { clear() }
 
     /** [piece]: FEN simvolu (məsələn 'N', 'p'), [squareSize]: bir xananın piksel ölçüsü. */
-    fun show(x1: Float, y1: Float, x2: Float, y2: Float, piece: Char, squareSize: Float) {
+    fun show(x1: Float, y1: Float, x2: Float, y2: Float, piece: Char, squareSize: Float, frameWidth: Int, frameHeight: Int) {
         boardRect = null
         screenGrid = null
+        sourceWidth = frameWidth
+        sourceHeight = frameHeight
         pts = floatArrayOf(x1, y1, x2, y2)
         this.piece = piece
         sq = squareSize
@@ -101,8 +110,10 @@ class ArrowView(c: Context) : View(c) {
     }
 
     /** Oxunmuş taxtanı göstərir: hər xanada tanınmış fiqur, şübhəli xanalarda qırmızı halqa. */
-    fun showBoard(r: BoardRect, grid: Array<CharArray>, weak: Set<Int>) {
+    fun showBoard(r: BoardRect, grid: Array<CharArray>, weak: Set<Int>, frameWidth: Int, frameHeight: Int) {
         pts = null
+        sourceWidth = frameWidth
+        sourceHeight = frameHeight
         anim.cancel()
         boardRect = r
         screenGrid = grid
@@ -116,6 +127,8 @@ class ArrowView(c: Context) : View(c) {
         pts = null
         boardRect = null
         screenGrid = null
+        sourceWidth = 0
+        sourceHeight = 0
         anim.cancel()
         invalidate()
     }
@@ -211,6 +224,16 @@ class ArrowView(c: Context) : View(c) {
         val sc = sqs * 0.62f / 100f
         pieceEdge.strokeWidth = sqs * 0.03f
         weakRing.strokeWidth = sqs * 0.05f
+        boardGuide.strokeWidth = (sqs * 0.018f).coerceAtLeast(1.2f)
+        // Show the detected 8x8 geometry so every square can be checked against the
+        // original board, not only the recognized piece silhouettes.
+        for (i in 0..8) {
+            val vx = r.x + i * sqs
+            val hy = r.y + i * sqs
+            canvas.drawLine(vx, r.y, vx, r.y + r.size, boardGuide)
+            canvas.drawLine(r.x, hy, r.x + r.size, hy, boardGuide)
+        }
+        canvas.drawRect(r.x, r.y, r.x + r.size, r.y + r.size, boardGuide)
         for (row in 0 until 8) {
             for (col in 0 until 8) {
                 val ch = grid[row][col]
@@ -239,19 +262,33 @@ class ArrowView(c: Context) : View(c) {
     }
 
     override fun onDraw(canvas: Canvas) {
+        // MediaProjection coordinates are physical pixels; the overlay View may have
+        // different dimensions because of Android insets or OEM window sizing.
+        val sx = if (sourceWidth > 0 && width > 0) width.toFloat() / sourceWidth else 1f
+        val sy = if (sourceHeight > 0 && height > 0) height.toFloat() / sourceHeight else 1f
+        canvas.save()
+        canvas.scale(sx, sy)
         val br = boardRect
         val sg = screenGrid
         if (br != null && sg != null) {
             drawBoardView(canvas, br, sg)
+            canvas.restore()
             return
         }
-        val p = pts ?: return
+        val p = pts
+        if (p == null) {
+            canvas.restore()
+            return
+        }
         val x1 = p[0]
         val y1 = p[1]
         val x2 = p[2]
         val y2 = p[3]
         val d = hypot(x2 - x1, y2 - y1)
-        if (d < 1f) return
+        if (d < 1f) {
+            canvas.restore()
+            return
+        }
         val ux = (x2 - x1) / d
         val uy = (y2 - y1) / d
 
@@ -303,5 +340,6 @@ class ArrowView(c: Context) : View(c) {
         canvas.drawPath(tmp, glow)
         canvas.drawPath(tmp, body)
         canvas.drawPath(tmp, edge)
+        canvas.restore()
     }
 }
