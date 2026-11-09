@@ -1,0 +1,26 @@
+name: Temporary video frame extraction
+on:
+  push:
+    branches:
+      - temp/video-frame-analysis
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Extract metadata and frames
+        run: |
+          mkdir -p /tmp/video-analysis/frames
+          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate -of json Screen_Recording_20261109_162522_Chess.mp4 > /tmp/video-analysis/metadata.json
+          ffmpeg -hide_banner -loglevel error -i Screen_Recording_20261109_162522_Chess.mp4 -vf "fps=1,scale=1280:-1" /tmp/video-analysis/frames/frame-%04d.jpg
+          cp /tmp/video-analysis/metadata.json .
+          zip -qr video-analysis-frames.zip /tmp/video-analysis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chess-video-frames
+          path: |
+            video-analysis-frames.zip
+            metadata.json
+          retention-days: 1
