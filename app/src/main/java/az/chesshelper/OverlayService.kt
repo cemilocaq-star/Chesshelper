@@ -1,5 +1,6 @@
 package az.chesshelper
 
+import android.app.AlertDialog
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -21,12 +22,14 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
+import android.text.InputType
 import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlinx.coroutines.CancellationException
@@ -62,6 +65,7 @@ class OverlayService : Service() {
     private var busy = false
     private var analysisTimeSeconds = 3
     private var targetElo = 2000
+    private var maxEngineStrength = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -132,6 +136,7 @@ class OverlayService : Service() {
 
         analysisTimeSeconds = getSharedPreferences("chess", MODE_PRIVATE).getInt("analysis_time_seconds", 3).coerceIn(1, 30)
         targetElo = getSharedPreferences("chess", MODE_PRIVATE).getInt("target_elo", 2000).coerceIn(1320, 3000)
+        maxEngineStrength = getSharedPreferences("chess", MODE_PRIVATE).getBoolean("max_engine_strength", false)
         buildUi()
         say(if (templates != null) "≡ Hazırdır" else "≡ Yeni oyunun əvvəlində Başlat bas")
 
@@ -199,12 +204,7 @@ class OverlayService : Service() {
             minHeight = 0
             minimumHeight = 0
             text = "Təhlil vaxtı: ${analysisTimeSeconds}s"
-            setOnClickListener {
-                val values = listOf(1, 2, 3, 5, 10, 15, 30)
-                analysisTimeSeconds = values[(values.indexOf(analysisTimeSeconds).coerceAtLeast(0) + 1) % values.size]
-                getSharedPreferences("chess", MODE_PRIVATE).edit().putInt("analysis_time_seconds", analysisTimeSeconds).apply()
-                text = "Təhlil vaxtı: ${analysisTimeSeconds}s"
-            }
+            setOnClickListener { showAnalysisTimeDialog(this) }
         }
         p.addView(timeButton)
         val eloButton = Button(this).apply {
@@ -212,14 +212,36 @@ class OverlayService : Service() {
             isAllCaps = false
             minHeight = 0
             minimumHeight = 0
-            text = "Mühərrik ELO-su: $targetElo"
+            text = "Mühərrik ELO-su: ${if (maxEngineStrength) "Maksimum" else targetElo}"
             setOnClickListener {
-                targetElo = if (targetElo >= 3000) 1320 else (targetElo + 100).coerceAtMost(3000)
-                getSharedPreferences("chess", MODE_PRIVATE).edit().putInt("target_elo", targetElo).apply()
+                maxEngineStrength = false
+                targetElo = if (targetElo >= 3000) 1320 else (targetElo + 20).coerceAtMost(3000)
+                getSharedPreferences("chess", MODE_PRIVATE).edit()
+                    .putInt("target_elo", targetElo)
+                    .putBoolean("max_engine_strength", false)
+                    .apply()
                 text = "Mühərrik ELO-su: $targetElo"
+                say("Mühərrik hədəfi: $targetElo ELO")
             }
         }
         p.addView(eloButton)
+        val maxButton = Button(this).apply {
+            textSize = 12f
+            isAllCaps = false
+            minHeight = 0
+            minimumHeight = 0
+            text = if (maxEngineStrength) "Maksimum güc: Aktiv" else "Maksimum gücü seç"
+            setOnClickListener {
+                maxEngineStrength = !maxEngineStrength
+                getSharedPreferences("chess", MODE_PRIVATE).edit()
+                    .putBoolean("max_engine_strength", maxEngineStrength)
+                    .apply()
+                text = if (maxEngineStrength) "Maksimum güc: Aktiv" else "Maksimum gücü seç"
+                eloButton.text = "Mühərrik ELO-su: ${if (maxEngineStrength) "Maksimum" else targetElo}"
+                say(if (maxEngineStrength) "Mühərrik maksimum gücdə işləyəcək" else "ELO məhdudiyyəti aktivdir")
+            }
+        }
+        p.addView(maxButton)
         btn("Bağla") { stopSelf() }
 
         val lp = WindowManager.LayoutParams(
@@ -258,6 +280,50 @@ class OverlayService : Service() {
 
         panel = p
         wm.addView(p, lp)
+    }
+
+    private fun showAnalysisTimeDialog(button: Button) {
+        val choices = arrayOf("1 saniyə", "3 saniyə", "10 saniyə", "Fərdi vaxt (1–30 saniyə)")
+        AlertDialog.Builder(this)
+            .setTitle("Təhlil müddəti")
+            .setItems(choices) { _, which ->
+                when (which) {
+                    0 -> setAnalysisTime(1, button)
+                    1 -> setAnalysisTime(3, button)
+                    2 -> setAnalysisTime(10, button)
+                    3 -> {
+                        val input = EditText(this).apply {
+                            inputType = InputType.TYPE_CLASS_NUMBER
+                            hint = "1–30 saniyə"
+                            setText(analysisTimeSeconds.toString())
+                            selectAll()
+                        }
+                        AlertDialog.Builder(this)
+                            .setTitle("Fərdi təhlil müddəti")
+                            .setView(input)
+                            .setNegativeButton("Ləğv et", null)
+                            .setPositiveButton("Yadda saxla") { _, _ ->
+                                val seconds = input.text.toString().toIntOrNull()
+                                if (seconds == null || seconds !in 1..30) {
+                                    say("Vaxt 1–30 saniyə arasında olmalıdır")
+                                } else {
+                                    setAnalysisTime(seconds, button)
+                                }
+                            }
+                            .show()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun setAnalysisTime(seconds: Int, button: Button) {
+        analysisTimeSeconds = seconds.coerceIn(1, 30)
+        getSharedPreferences("chess", MODE_PRIVATE).edit()
+            .putInt("analysis_time_seconds", analysisTimeSeconds)
+            .apply()
+        button.text = "Təhlil vaxtı: ${analysisTimeSeconds}s"
+        say("Təhlil müddəti: ${analysisTimeSeconds} saniyə")
     }
 
     private fun say(s: String) {
@@ -412,7 +478,8 @@ class OverlayService : Service() {
 
         val move = withContext(Dispatchers.IO) {
             try {
-                eng.configureStrength(targetElo)\n            eng.best(fen, analysisTimeSeconds * 1000)
+                eng.configureStrength(targetElo, maxEngineStrength)
+                eng.best(fen, analysisTimeSeconds * 1000)
             } catch (e: Exception) {
                 null
             }
