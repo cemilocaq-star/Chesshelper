@@ -29,6 +29,7 @@ import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
@@ -338,9 +339,9 @@ class OverlayService : Service() {
         val scroll = ScrollView(this).apply {
             isFillViewport = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            addView(p, ScrollView.LayoutParams(
-                ScrollView.LayoutParams.WRAP_CONTENT,
-                ScrollView.LayoutParams.WRAP_CONTENT
+            addView(p, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
         applyPanelTheme(p)
