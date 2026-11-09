@@ -45,12 +45,36 @@ class Engine(ctx: Context) : AutoCloseable {
         }
     }
 
-    @Synchronized
+    private val outputLock = Any()
+    @Volatile private var searching = false
+
     private fun send(cmd: String) {
+        synchronized(outputLock) {
+            sendLocked(cmd)
+        }
+    }
+
+    private fun sendLocked(cmd: String) {
         check(!closed.get() && proc.isAlive) { "Stockfish prosesi aktiv deyil" }
         out.write(cmd)
         out.newLine()
         out.flush()
+    }
+
+    /** Interrupts the active search without waiting for best()'s response lock. */
+    fun stopSearch() {
+        if (!searching || closed.get()) return
+        try {
+            synchronized(outputLock) {
+                if (searching && !closed.get() && proc.isAlive) {
+                    out.write("stop")
+                    out.newLine()
+                    out.flush()
+                }
+            }
+        } catch (_: Exception) {
+            close()
+        }
     }
 
     private fun nextLine(timeoutMs: Long): String {
@@ -85,8 +109,12 @@ class Engine(ctx: Context) : AutoCloseable {
     fun best(fen: String, moveTimeMs: Int = 800): String? {
         require(moveTimeMs in 100..30_000) { "Analiz müddəti 100–30000 ms olmalıdır" }
         require(fen.isNotBlank() && !fen.contains('\n')) { "FEN yanlışdır" }
-        send("position fen $fen")
-        send("go movetime $moveTimeMs")
+        synchronized(outputLock) {
+            check(!closed.get() && proc.isAlive) { "Stockfish prosesi aktiv deyil" }
+            sendLocked("position fen $fen")
+            searching = true
+            sendLocked("go movetime $moveTimeMs")
+        }
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(moveTimeMs + 5_000L)
         try {
             while (true) {
@@ -98,14 +126,16 @@ class Engine(ctx: Context) : AutoCloseable {
                     return move?.takeIf { it.matches(Regex("[a-h][1-8][a-h][1-8][qrbn]?")) }
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             try {
-                send("stop")
+                stopSearch()
                 waitFor("bestmove", 2_000)
             } catch (_: Exception) {
                 close()
             }
             return null
+        } finally {
+            searching = false
         }
     }
 
