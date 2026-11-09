@@ -868,9 +868,14 @@ class OverlayService : Service() {
         } else if (castlingKnown) {
             castling = BoardReader.updateCastling(castling, previous, reading.placement)
         }
-        placementBeforePrevious = previous
-        previousPlacement = reading.placement
-        previousSideToMove = reading.sideToMove
+        if (previous == null) {
+            previousPlacement = reading.placement
+            previousSideToMove = reading.sideToMove
+        } else if (previous != reading.placement) {
+            placementBeforePrevious = previous
+            previousPlacement = reading.placement
+            previousSideToMove = reading.sideToMove
+        }
         lastRecognitionMs = SystemClock.elapsedRealtime() - recognitionStarted
         addMetric(recognitionSamples, lastRecognitionMs)
         lastPieceCoverage = if (reading.occupiedCount == 0) 0 else (((reading.occupiedCount - reading.weak.size).coerceAtLeast(0) / reading.occupiedCount.toFloat()) * 100f).toInt()
