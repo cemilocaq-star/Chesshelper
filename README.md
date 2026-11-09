@@ -12,7 +12,7 @@ Tətbiq şəxsi təhlil, bot oyunları və bütün iştirakçıların əvvəlcə
 4. **Dayandır** avtomatik oxuma dövrünü saxlayır. Dairəvi şahmat düyməsi paneli gizlədir/göstərir; onu sürüşdürərək yerini dəyişmək olar.
 5. Eyni servis işləyərkən yeni oyuna keçəndə **Yeni oyun** düyməsini bas, sonra başlanğıc taxta göründükdə **Avtomatik başlat** seç. Bu, əvvəlki oyunun rokirovka və istiqamət vəziyyətini sıfırlayır.
 6. **Yoxla** tanınmış taxtanı göstərir. Qırmızı çərçivə tanınması şübhəli olan fiqur xanasını bildirir. Lazım gəldikdə **Şablonu yenilə** ilə başlanğıc mövqedə yenidən kalibrə et.
-7. Son gedişin işıqlandırılmasından növbə müəyyən edilə bilmirsə, **Növbə** düyməsindən Ağ və ya Qara seç. Avtomatik rejimdə qeyri-müəyyən növbə üçün mühərrikdən təsadüfi tərəf seçilmir.
+7. Son gedişin işıqlandırılmasından növbə müəyyən edilə bilmirsə, **Növbə** düyməsindən Ağ və ya Qara seç. Əl ilə seçilən tərəf yalnız növbəti uğurlu analizə tətbiq olunur; sonrakı gedişdə yenidən avtomatik tanınma sınanır və yenə bilinməzsə seçim təkrarlanmalıdır.
 
 ## Analiz parametrləri
 
