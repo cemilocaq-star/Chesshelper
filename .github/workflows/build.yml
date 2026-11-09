@@ -15,20 +15,47 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # Stockfish-in ən son rəsmi release etiketini Android NDK ilə arm64 üçün yığır
+      # Stockfish-i Android NDK ilə arm64 üçün yığır. Ən son 5 rəsmi release etiketi ardıcıl yoxlanılır:
+      # birincisi yığılan istifadə olunur, uğursuz olanın xəta sətirləri log-da göstərilir.
       - name: Build Stockfish (arm64)
         run: |
+          export PATH="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+          echo "NDK: $ANDROID_NDK_LATEST_HOME"
+          aarch64-linux-android21-clang++ --version
+
           git clone --filter=blob:none https://github.com/official-stockfish/Stockfish.git
           cd Stockfish
-          TAG=$(git tag --list 'sf_*' --sort=-v:refname | head -n1)
-          if [ -n "$TAG" ]; then git checkout "$TAG"; fi
-          echo "Stockfish: ${TAG:-default branch}"
-          export PATH="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
-          cd src
-          make -j"$(nproc)" build ARCH=armv8 COMP=ndk
-          test -f stockfish || { echo "stockfish binarisi yaranmadı"; exit 1; }
+          built=""
+          for TAG in $(git tag --list 'sf_*' --sort=-v:refname | head -n 5); do
+            echo "::group::Stockfish $TAG"
+            git checkout -q -f "$TAG"
+            git clean -fdxq
+            if (cd src && make -j"$(nproc)" build ARCH=armv8 COMP=ndk > ../build.log 2>&1); then
+              built="$TAG"
+              echo "::endgroup::"
+              break
+            fi
+            echo "Build failed for $TAG. Last log lines:"
+            tail -n 40 build.log
+            cp build.log "$GITHUB_WORKSPACE/stockfish-build-$TAG.log" || true
+            echo "::endgroup::"
+          done
+          if [ -z "$built" ]; then
+            echo "::error::Stockfish could not be built for any of the latest tags"
+            exit 1
+          fi
+          echo "Built Stockfish $built"
+          test -f src/stockfish
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a"
-          cp stockfish "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libstockfish.so"
+          cp src/stockfish "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libstockfish.so"
+
+      - name: Upload Stockfish build logs (only on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockfish-build-logs
+          path: stockfish-build-*.log
+          if-no-files-found: ignore
 
       - uses: gradle/actions/setup-gradle@v4
         with:
