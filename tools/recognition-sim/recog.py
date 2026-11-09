@@ -230,7 +230,10 @@ def read(sc, t, prev_wb=True, repair=True, detect_orientation=False):
                             if pick[r][c] != "." and pick[r][c].isupper() == K.isupper()
                             and scores[r][c] is not None]
                     if side:
-                        r, c = max(side, key=lambda p: scores[p[0]][p[1]][idx])
+                        r, c = max(
+                            side,
+                            key=lambda p: scores[p[0]][p[1]][idx] if scores[p[0]][p[1]] is not None else -1
+                        )
                         if scores[r][c][idx] >= WEAK_SCORE:
                             pick[r][c] = K
             for P in "Pp":
