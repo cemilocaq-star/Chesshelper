@@ -850,13 +850,20 @@ object BoardReader {
             if (empty > 0) sb.append(empty)
             if (rank > 0) sb.append('/')
         }
-        return Reading(sb.toString(), whiteBottom, side, ep, pick, weak, wAll + bAll)
+        val placement = sb.toString()
+        // A clean initial position has a known side to move even before any last-move
+        // highlight exists. Never guess the side for non-initial positions.
+        if (side == null) side = defaultSideToMove(placement)
+        return Reading(placement, whiteBottom, side, ep, pick, weak, wAll + bAll)
     }
 
     // ---------------------------------------------------------------- köməkçilər
 
     private const val START_PLACEMENT =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+
+    fun defaultSideToMove(placement: String): Char? =
+        if (placement == START_PLACEMENT) 'w' else null
 
     /**
      * Expected piece symbols by screenshot row, from screen-left to screen-right.
