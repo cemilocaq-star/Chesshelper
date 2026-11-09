@@ -1,6 +1,7 @@
 import sys, random
 sys.path.insert(0, '.')
 import numpy as np
+import chess
 from render import *
 import recog as recog_module
 from recog import *
@@ -103,8 +104,10 @@ if __name__ == "__main__":
             ok, tot, rows = result
             from collections import Counter
             accuracy = 100 * ok / tot
-            print(f"{th:6s} {font:10s} {ok}/{tot} = {accuracy:.2f}%  legal_positions={len(positions)}  errors: {Counter(map(str,rows)).most_common(4)}")
-            if accuracy < 95.0:
+            position_count = 1 + len(CURATED_SEQUENCES) + len(CURATED_FENS) + 25
+            print(f"{th:6s} {font:10s} {ok}/{tot} = {accuracy:.2f}%  legal_positions={position_count}  errors: {Counter(map(str,rows)).most_common(4)}")
+            fen_mismatch = any(isinstance(row, tuple) and row and row[0] == "FEN_PLACEMENT_MISMATCH" for row in rows)
+            if accuracy < 95.0 or fen_mismatch:
                 failures.append((th, font, f"accuracy={accuracy:.2f}%"))
     if failures:
         raise SystemExit(f"Recognition simulation failed: {failures}")

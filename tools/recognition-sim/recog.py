@@ -206,7 +206,9 @@ def read(sc, t, prev_wb=True, repair=True, detect_orientation=False):
         for i, p in enumerate(PIECES):
             if p in banned:
                 s[i] = -9
-        pick[r][c] = PIECES[int(np.argmax(s))]
+        best = int(np.argmax(s))
+        if s[best] >= WEAK_SCORE:
+            pick[r][c] = PIECES[best]
 
     if repair:
         for _ in range(3):
