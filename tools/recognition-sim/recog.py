@@ -108,17 +108,26 @@ class Templates:
         self.s = {p: [] for p in PIECES}
         self.thr = 128.0
 
+LAST_CALIBRATION_FAILURE = None
+
 def calibrate(sc):
+    global LAST_CALIBRATION_FAILURE
+    LAST_CALIBRATION_FAILURE = None
     occ = [[sc[r][c].occupied for c in range(8)] for r in range(8)]
     emptyHome = sum(1 for r in range(8) for c in range(8) if (r <= 1 or r >= 6) and not occ[r][c])
     midOcc = sum(1 for r in range(8) for c in range(8) if (2 <= r <= 5) and occ[r][c])
     if emptyHome > 2 or midOcc > 2 or emptyHome != midOcc:
+        LAST_CALIBRATION_FAILURE = f'occupancy mismatch: emptyHome={emptyHome}, midOcc={midOcc}'
         return None
     def mean(rows):
         v = [sc[r][c].fill for r in rows for c in range(8) if occ[r][c]]
         return np.mean(v) if v else None
     top, bot = mean([0, 1]), mean([6, 7])
-    if top is None or bot is None or abs(top - bot) < 40:
+    if top is None or bot is None:
+        LAST_CALIBRATION_FAILURE = 'missing occupied home-rank samples'
+        return None
+    if abs(top - bot) < 40:
+        LAST_CALIBRATION_FAILURE = f'piece colour contrast too low: top={top:.1f}, bottom={bot:.1f}'
         return None
     wb = bot > top
     layout = {0: "rnbqkbnr", 1: "pppppppp", 6: "PPPPPPPP", 7: "RNBQKBNR"} if wb else \
@@ -143,6 +152,8 @@ def calibrate(sc):
                 t.s[p] = list(t.s[counterpart])
 
     if not wl or not bl or any(len(t.s[p]) == 0 for p in PIECES):
+        missing = [p for p in PIECES if not t.s[p]]
+        LAST_CALIBRATION_FAILURE = f'missing templates: {missing}'
         return None
     t.thr = (np.mean(wl) + np.mean(bl)) / 2
     t.gap = np.mean(wl) - np.mean(bl)
