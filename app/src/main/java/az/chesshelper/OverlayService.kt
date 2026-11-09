@@ -65,6 +65,7 @@ class OverlayService : Service() {
 
     private var templates: Templates? = null
     private var whiteBottom = true
+    private var orientationKnown = false
     private var castling = "-"
     private var castlingKnown = false
     private var previousPlacement: String? = null
@@ -173,7 +174,9 @@ class OverlayService : Service() {
         // əvvəlki oyunlardan saxlanmış şablonlar (mövzu/fiqur dəsti dəyişməyibsə yenidən kalibrə lazım deyil)
         templates = getSharedPreferences("chess", MODE_PRIVATE).getString("tpl2", null)
             ?.let { Templates.parse(it) }
-        whiteBottom = getSharedPreferences("chess", MODE_PRIVATE).getBoolean("white_bottom", true)
+        val prefs = getSharedPreferences("chess", MODE_PRIVATE)
+        whiteBottom = prefs.getBoolean("white_bottom", true)
+        orientationKnown = prefs.contains("white_bottom")
         sideOverride = when (getSharedPreferences("chess", MODE_PRIVATE).getString("side_override", "auto")) {
             "white" -> 'w'
             "black" -> 'b'
@@ -656,6 +659,7 @@ class OverlayService : Service() {
     private fun applyCalibration(r: CalibResult) {
         templates = r.templates
         whiteBottom = r.whiteBottom
+        orientationKnown = true
         getSharedPreferences("chess", MODE_PRIVATE).edit()
             .putString("tpl2", r.templates.serialize())
             .putBoolean("white_bottom", r.whiteBottom)
@@ -725,12 +729,20 @@ class OverlayService : Service() {
             say("Şablon yoxdur: yeni oyunun ilk 1-2 gedişində bir dəfə Başlat bas")
             return null
         }
-        val reading = withContext(Dispatchers.Default) { BoardReader.read(scan, t, whiteBottom) }
+        val reading = withContext(Dispatchers.Default) {
+            BoardReader.read(scan, t, whiteBottom, detectOrientation = !orientationKnown)
+        }
         if (reading == null) {
             say("Taxta oxunmadı (fiqur dəsti dəyişibsə yeni oyunun əvvəlində şablonu yenilə)")
             return null
         }
         whiteBottom = reading.whiteBottom
+        if (!orientationKnown) {
+            orientationKnown = true
+            getSharedPreferences("chess", MODE_PRIVATE).edit()
+                .putBoolean("white_bottom", whiteBottom)
+                .apply()
+        }
 
         // Castling rights are known only when this session observed the initial position.
         // Thereafter they can only be removed when the original king/rook leaves its home square.
