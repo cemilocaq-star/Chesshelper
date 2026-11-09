@@ -449,54 +449,6 @@ class OverlayService : Service() {
         dialog.show()
     }
 
-    private fun showAnalysisTimeDialog(button: Button) {
-        val choices = arrayOf("Fast — 1 saniyə", "Normal — 3 saniyə", "Deep — 10 saniyə", "Custom — 1–30 saniyə")
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Təhlil müddəti")
-            .setItems(choices) { parentDialog, which ->
-                when (which) {
-                    0 -> setAnalysisTime(1, button)
-                    1 -> setAnalysisTime(3, button)
-                    2 -> setAnalysisTime(10, button)
-                    3 -> {
-                        parentDialog.dismiss()
-                        val input = EditText(this).apply {
-                            inputType = InputType.TYPE_CLASS_NUMBER
-                            hint = "1–30 saniyə"
-                            setText(analysisTimeSeconds.toString())
-                            selectAll()
-                        }
-                        val customDialog = AlertDialog.Builder(this)
-                            .setTitle("Fərdi təhlil müddəti")
-                            .setView(input)
-                            .setNegativeButton("Ləğv et", null)
-                            .setPositiveButton("Yadda saxla") { _, _ ->
-                                val seconds = input.text.toString().toIntOrNull()
-                                if (seconds == null || seconds !in 1..30) {
-                                    say("Vaxt 1–30 saniyə arasında olmalıdır")
-                                } else {
-                                    setAnalysisTime(seconds, button)
-                                }
-                            }
-                            .create()
-                        showServiceDialog(customDialog)
-                    }
-                }
-            }
-            .create()
-        showServiceDialog(dialog)
-    }
-
-    private fun setAnalysisTime(seconds: Int, button: Button) {
-        analysisTimeSeconds = seconds.coerceIn(500, 30_000)
-        getSharedPreferences("chess", MODE_PRIVATE).edit()
-            .putInt("analysis_time_ms", analysisTimeSeconds)
-            .putInt("analysis_time_seconds", (analysisTimeSeconds / 1000f).toInt().coerceAtLeast(1))
-            .apply()
-        button.text = "Təhlil vaxtı: ${analysisTimeSeconds / 1000f}s"
-        say("Təhlil müddəti: ${analysisTimeSeconds / 1000f} saniyə")
-    }
-
     private fun say(s: String) {
         status?.text = s
     }
@@ -612,7 +564,7 @@ class OverlayService : Service() {
                     "Güclü fiqur tanınması (heuristik): ${lastPieceCoverage}%\n" +
                     "Tanınma xətaları: $recognitionFailures · Mühərrik xətaları: $engineFailures\n" +
                     "Analiz tarixçəsi: ${SessionStore.read(this).size}/100\n" +
-                    "Analiz müddəti: ${analysisTimeSeconds} s\n" +
+                    "Analiz müddəti: ${analysisTimeSeconds / 1000f} s\n" +
                     "Mühərrik: ${if (maxEngineStrength) "Maksimum" else targetElo}\n" +
                     "Düşünmə rejimi: ${when (getSharedPreferences("chess", MODE_PRIVATE).getString("thinking_mode", "balanced")) { "fast" -> "Sürətli"; "deep" -> "Dərin"; "custom" -> "Xüsusi"; else -> "Balanslı" }}"
             )
