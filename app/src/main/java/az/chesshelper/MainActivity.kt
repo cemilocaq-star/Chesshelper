@@ -2,6 +2,7 @@ package az.chesshelper
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
@@ -39,10 +40,58 @@ class MainActivity : Activity() {
             textSize = 16f
         })
         root.addView(Button(this).apply {
+            text = "Parametrlər"
+            setOnClickListener { showSettings() }
+        })
+        root.addView(Button(this).apply {
             text = "Başlat"
             setOnClickListener { start() }
         })
         setContentView(root)
+    }
+
+    private fun showSettings() {
+        val prefs = getSharedPreferences("chess", MODE_PRIVATE)
+        val items = arrayOf("Mühərrik ELO-su", "Analiz müddəti", "Mövzu")
+        AlertDialog.Builder(this)
+            .setTitle("Chess Helper parametrləri")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        val values = intArrayOf(1320, 1500, 1800, 2000, 2200, 2500, 2800, 3000)
+                        val labels = values.map { "$it ELO" }.toTypedArray() + "Maksimum güc"
+                        AlertDialog.Builder(this)
+                            .setTitle("Mühərrik gücü")
+                            .setItems(labels) { _, selected ->
+                                val edit = prefs.edit()
+                                if (selected == values.size) {
+                                    edit.putBoolean("max_engine_strength", true)
+                                } else {
+                                    edit.putInt("target_elo", values[selected])
+                                        .putBoolean("max_engine_strength", false)
+                                }
+                                edit.apply()
+                            }.show()
+                    }
+                    1 -> {
+                        val values = intArrayOf(1, 3, 5, 10, 15, 20, 30)
+                        AlertDialog.Builder(this)
+                            .setTitle("Analiz müddəti")
+                            .setItems(values.map { "$it saniyə" }.toTypedArray()) { _, selected ->
+                                prefs.edit().putInt("analysis_time_seconds", values[selected]).apply()
+                            }.show()
+                    }
+                    2 -> {
+                        val themes = arrayOf("Dark", "Midnight Blue", "AMOLED")
+                        val keys = arrayOf("dark", "midnight", "amoled")
+                        AlertDialog.Builder(this)
+                            .setTitle("Mövzu")
+                            .setItems(themes) { _, selected ->
+                                prefs.edit().putString("theme", keys[selected]).apply()
+                            }.show()
+                    }
+                }
+            }.show()
     }
 
     private fun start() {
@@ -77,7 +126,6 @@ class MainActivity : Activity() {
                 .putExtra("code", resultCode)
                 .putExtra("data", data)
             startForegroundService(i)
-            moveTaskToBack(true)
         }
     }
 }
