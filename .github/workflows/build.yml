@@ -97,7 +97,7 @@ jobs:
           set -e
           sudo apt-get update
           sudo apt-get install -y fonts-dejavu-core fonts-freefont-ttf
-          python -m pip install --disable-pip-version-check numpy==1.26.4 scipy==1.13.1 Pillow==10.4.0
+          python -m pip install --disable-pip-version-check numpy==1.26.4 scipy==1.13.1 Pillow==10.4.0 python-chess==1.999
 
       - name: Test synthetic piece recognition and board localization
         shell: bash

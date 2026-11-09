@@ -7,7 +7,8 @@ F = 16
 WALL_T = 70          # |rgb - bg| sum above this = "not background"
 CROP = (0.10, 0.90)
 MIN_COVER = 0.15
-MIN_BBOX = 0.45
+MIN_BBOX = 0.40
+WEAK_SCORE = 0.60
 
 def lum(a):
     return 0.299 * a[..., 0] + 0.587 * a[..., 1] + 0.114 * a[..., 2]
@@ -185,7 +186,9 @@ def read(sc, t, prev_wb=True, repair=True, detect_orientation=False):
                 continue
             s = class_scores(sc[r][c], t)
             scores[r][c] = s
-            pick[r][c] = PIECES[int(np.argmax(s))]
+            best = int(np.argmax(s))
+        if s[best] >= WEAK_SCORE:
+            pick[r][c] = PIECES[best]
     wr = [r for r in range(8) for c in range(8) if pick[r][c].isupper()]
     br = [r for r in range(8) for c in range(8) if pick[r][c].islower()]
     if not wr or not br:
@@ -224,7 +227,8 @@ def read(sc, t, prev_wb=True, repair=True, detect_orientation=False):
                             if pick[r][c] != "." and pick[r][c].isupper() == K.isupper()]
                     if side:
                         r, c = max(side, key=lambda p: scores[p[0]][p[1]][idx])
-                        pick[r][c] = K
+                        if scores[r][c][idx] >= WEAK_SCORE:
+                            pick[r][c] = K
             for P in "Pp":
                 pos = [(r, c) for r in range(8) for c in range(8) if pick[r][c] == P]
                 idx = PIECES.index(P)
@@ -232,4 +236,17 @@ def read(sc, t, prev_wb=True, repair=True, detect_orientation=False):
                     pos.sort(key=lambda p: -scores[p[0]][p[1]][idx])
                     for p in pos[8:]:
                         reassign(p[0], p[1], P)
+    # Reject impossible material counts or missing kings instead of returning a fabricated FEN.
+    wk = sum(pick[r][c] == "K" for r in range(8) for c in range(8))
+    bk = sum(pick[r][c] == "k" for r in range(8) for c in range(8))
+    wp = sum(pick[r][c] == "P" for r in range(8) for c in range(8))
+    bp = sum(pick[r][c] == "p" for r in range(8) for c in range(8))
+    wa = sum(pick[r][c].isupper() for r in range(8) for c in range(8))
+    ba = sum(pick[r][c].islower() for r in range(8) for c in range(8))
+    for r in range(8):
+        rank = 7 - r if wb else r
+        if rank in (0, 7) and any(pick[r][c] in "Pp" for c in range(8)):
+            return None
+    if wk != 1 or bk != 1 or wp > 8 or bp > 8 or wa > 16 or ba > 16:
+        return None
     return pick, wb, scores

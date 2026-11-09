@@ -1,5 +1,6 @@
 import random
 from PIL import Image, ImageDraw, ImageFont
+import chess
 
 THEMES = {
     "green": ((238, 238, 210), (118, 150, 86)),
@@ -78,27 +79,76 @@ def render(grid, theme, font, white_bottom=True, last=None, hints=(), capring=()
                    stroke_width=2, stroke_fill=(40, 40, 40) if white else black_stroke)
     return img
 
-def random_position(rng, white_bottom=True):
-    pieces = {"K": 1, "Q": 1, "R": 2, "B": 2, "N": 2, "P": 8}
-    sq = [(r, c) for r in range(8) for c in range(8)]
-    rng.shuffle(sq)
-    grid = [["."] * 8 for _ in range(8)]
-    n_remove = rng.randint(0, 14)
-    items = []
-    for side in (str.upper, str.lower):
-        for p, n in pieces.items():
-            for _ in range(n):
-                items.append(side(p))
-    keep = [it for it in items if it.lower() == "k"]
-    others = [it for it in items if it.lower() != "k"]
-    rng.shuffle(others)
-    others = others[: len(others) - n_remove]
-    for it in keep + others:
-        while True:
-            r, c = sq.pop()
-            if it.lower() == "p" and r in (0, 7):
-                sq.insert(0, (r, c))
-                continue
-            grid[r][c] = it
+def board_to_grid(board):
+    """Return the board placement as rows from rank 8 to rank 1."""
+    return [
+        [
+            board.piece_at(chess.square(file, rank)).symbol()
+            if board.piece_at(chess.square(file, rank)) else "."
+            for file in range(8)
+        ]
+        for rank in range(7, -1, -1)
+    ]
+
+
+CURATED_SEQUENCES = [
+    # Open game followed by legal king-side castling on both sides.
+    ("e2e4", "e7e5", "g1f3", "b8c6", "f1c4", "g8f6", "e1g1", "f8c5", "d2d3", "e8g8"),
+    # En-passant target after Black's two-square pawn move.
+    ("e2e4", "a7a6", "e4e5", "d7d5"),
+    # Several genuine captures in a Queen's Gambit structure.
+    ("d2d4", "d7d5", "c1f4", "g8f6", "e2e3", "e7e6", "f1d3",
+     "c7c5", "c2c3", "b8c6", "g1f3", "c5d4", "e3d4"),
+    # Fool's mate: a legal checkmate position.
+    ("f2f3", "e7e5", "g2g4", "d8h4"),
+    # Queen-side castling with the required path cleared.
+    ("d2d4", "d7d5", "c1f4", "c8f5", "e2e3", "e7e6",
+     "b1c3", "b8c6", "d1d2", "d8d7", "e1c1"),
+]
+
+
+CURATED_FENS = [
+    # White pawn one step from promotion.
+    "4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+    # En-passant capture is available to White.
+    "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+    # Both sides retain castling rights.
+    "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+    # A legal position where White is in check.
+    "4k3/8/8/8/8/8/4r3/4K3 w - - 0 1",
+]
+
+
+def curated_positions():
+    """Return verified legal positions covering special moves and game states."""
+    boards = [chess.Board()]
+    for sequence in CURATED_SEQUENCES:
+        board = chess.Board()
+        for uci in sequence:
+            move = chess.Move.from_uci(uci)
+            if move not in board.legal_moves:
+                raise AssertionError(f"Curated sequence contains illegal move: {uci} in {board.fen()}")
+            board.push(move)
+        boards.append(board)
+    for fen in CURATED_FENS:
+        board = chess.Board(fen)
+        if not board.is_valid():
+            raise AssertionError(f"Curated FEN is not a legal position: {fen} (status={board.status()})")
+        boards.append(board)
+    return boards
+
+
+def random_position(rng):
+    """Generate a reachable position by playing only legal moves from the initial board."""
+    board = chess.Board()
+    plies = rng.randint(12, 90)
+    for _ in range(plies):
+        if board.is_game_over(claim_draw=True):
             break
-    return grid
+        moves = list(board.legal_moves)
+        if not moves:
+            break
+        board.push(rng.choice(moves))
+    if not board.is_valid():
+        raise AssertionError(f"Random playout produced invalid position: {board.fen()}")
+    return board

@@ -16,7 +16,7 @@ private const val F = 16                 // xana mərkəzi 16x16 xüsusiyyət ş
 private const val FLEN = F * F
 private const val WALL_T = 70            // fondan fərq (RGB cəmi) bu həddi keçəndə piksel "fon deyil"
 private const val MIN_COVER = 0.15f      // xananın dolu sayılması üçün maska payı
-private const val MIN_BBOX = 0.45f       // və maskanın en/hündürlük payı (gediş nöqtəsini ayırır)
+private const val MIN_BBOX = 0.40f       // və maskanın en/hündürlük payı (gediş nöqtəsini ayırır)
 private const val PIECES = "KQRBNPkqrbnp"
 
 /** Bu balın altında oxunan xana "şübhəli" sayılır. */
@@ -752,7 +752,8 @@ object BoardReader {
         fun reassign(row: Int, col: Int, banned: String) {
             val v = scores[row][col]!!.copyOf()
             for (i in PIECES.indices) if (banned.indexOf(PIECES[i]) >= 0) v[i] = -9f
-            pick[row][col] = PIECES[argmax(v)]
+            val best = argmax(v)
+            if (v[best] >= WEAK_SCORE) pick[row][col] = PIECES[best]
         }
 
         for (round in 0 until 3) {
@@ -775,7 +776,9 @@ object BoardReader {
                         if (ch != '.' && ch.isUpperCase() == k.isUpperCase()) side.add(intArrayOf(row, col))
                     }
                     val q = side.maxByOrNull { scores[it[0]][it[1]]!![idx] }
-                    if (q != null) pick[q[0]][q[1]] = k
+                    if (q != null && scores[q[0]][q[1]]!![idx] >= WEAK_SCORE) {
+                        pick[q[0]][q[1]] = k
+                    }
                 }
             }
             for (pc in "Pp") {
