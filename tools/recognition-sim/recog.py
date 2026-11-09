@@ -122,7 +122,7 @@ def calibrate(sc):
         return None
     wb = bot > top
     layout = {0: "rnbqkbnr", 1: "pppppppp", 6: "PPPPPPPP", 7: "RNBQKBNR"} if wb else \
-             {0: "RNBQKBNR", 1: "PPPPPPPP", 6: "pppppppp", 7: "rnbqkbnr"}
+             {0: "RNBKQBNR", 1: "PPPPPPPP", 6: "pppppppp", 7: "rnbkqbnr"}
     t = Templates()
     wl, bl = [], []
     for r, line in layout.items():
