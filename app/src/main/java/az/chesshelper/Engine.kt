@@ -38,12 +38,16 @@ class Engine(ctx: Context) {
         }
     }
 
-    /** Stockfish gücünü seçilmiş ELO səviyyəsinə məhdudlaşdırır. */
+    /** Stockfish-i seçilmiş ELO ilə məhdudlaşdırır və ya maksimum gücdə saxlayır. */
     @Synchronized
-    fun configureStrength(elo: Int) {
-        val safeElo = elo.coerceIn(1320, 3000)
-        send("setoption name UCI_LimitStrength value true")
-        send("setoption name UCI_Elo value $safeElo")
+    fun configureStrength(elo: Int, maximum: Boolean = false) {
+        if (maximum) {
+            send("setoption name UCI_LimitStrength value false")
+        } else {
+            val safeElo = elo.coerceIn(1320, 3000)
+            send("setoption name UCI_LimitStrength value true")
+            send("setoption name UCI_Elo value $safeElo")
+        }
         send("isready")
         waitFor("readyok")
     }
