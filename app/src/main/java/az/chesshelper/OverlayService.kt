@@ -54,7 +54,7 @@ class OverlayService : Service() {
     private var reader: ImageReader? = null
     private var display: VirtualDisplay? = null
     private val frameLock = Any()
-    @Volatile private var latestFrame: Bitmap? = null
+    private var latestImage: Image? = null
     private var frameThread: HandlerThread? = null
     @Volatile private var lastFrameAt = 0L
     @Volatile private var engine: Engine? = null
@@ -151,35 +151,17 @@ class OverlayService : Service() {
             } catch (_: Exception) {
                 null
             } ?: return@setOnImageAvailableListener
-            var ownedFrame: Bitmap? = null
-            try {
-                if (destroyed) return@setOnImageAvailableListener
-                val plane = img.planes[0]
-                val rowPixels = (plane.rowStride + plane.pixelStride - 1) / plane.pixelStride
-                val padded = Bitmap.createBitmap(rowPixels, img.height, Bitmap.Config.ARGB_8888)
-                ownedFrame = padded
-                plane.buffer.rewind()
-                padded.copyPixelsFromBuffer(plane.buffer)
-                val frame = if (rowPixels == img.width) padded else
-                    Bitmap.createBitmap(padded, 0, 0, img.width, img.height).also { padded.recycle() }
-                ownedFrame = frame
-                synchronized(frameLock) {
-                    if (destroyed) {
-                        if (!frame.isRecycled) frame.recycle()
-                        ownedFrame = null
-                    } else {
-                        val old = latestFrame
-                        latestFrame = frame
-                        ownedFrame = null // ownership transferred to latestFrame
-                        if (old != null && old !== frame && !old.isRecycled) old.recycle()
-                        lastFrameAt = SystemClock.uptimeMillis()
-                    }
+            synchronized(frameLock) {
+                if (destroyed) {
+                    img.close()
+                } else {
+                    // Keep only the newest hardware frame. capture() copies it to a Bitmap
+                    // while holding the same lock, so this Image cannot be closed mid-read.
+                    val old = latestImage
+                    latestImage = img
+                    lastFrameAt = SystemClock.uptimeMillis()
+                    old?.close()
                 }
-            } catch (_: Exception) {
-                // A damaged capture is ignored; the last complete frame remains available.
-                ownedFrame?.let { if (!it.isRecycled) it.recycle() }
-            } finally {
-                img.close()
             }
         }, Handler(callbackThread.looper))
         reader = r
@@ -666,9 +648,26 @@ class OverlayService : Service() {
             }
             if (lastFrameAt < start) return null
             return synchronized(frameLock) {
-                val frame = latestFrame
-                if (frame == null || frame.isRecycled) null
-                else frame.copy(Bitmap.Config.ARGB_8888, false)
+                val img = latestImage ?: return@synchronized null
+                latestImage = null
+                try {
+                    val plane = img.planes[0]
+                    val rowPixels = plane.rowStride / plane.pixelStride
+                    val padded = Bitmap.createBitmap(rowPixels, img.height, Bitmap.Config.ARGB_8888)
+                    try {
+                        plane.buffer.rewind()
+                        padded.copyPixelsFromBuffer(plane.buffer)
+                        if (rowPixels == img.width) padded
+                        else Bitmap.createBitmap(padded, 0, 0, img.width, img.height).also { padded.recycle() }
+                    } catch (e: Exception) {
+                        if (!padded.isRecycled) padded.recycle()
+                        throw e
+                    }
+                } catch (_: Exception) {
+                    null
+                } finally {
+                    img.close()
+                }
             }
         } finally {
             panel?.visibility = previousPanelVisibility ?: View.VISIBLE
@@ -889,8 +888,8 @@ class OverlayService : Service() {
         try { frameThread?.join(500) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
         frameThread = null
         synchronized(frameLock) {
-            latestFrame?.recycle()
-            latestFrame = null
+            latestImage?.close()
+            latestImage = null
         }
         projection?.stop()
         engine?.close()
