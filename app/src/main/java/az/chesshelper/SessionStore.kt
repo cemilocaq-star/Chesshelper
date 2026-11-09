@@ -8,7 +8,7 @@ data class MoveRecord(
     val fen: String,
     val uci: String,
     val timestamp: Long,
-    val confidence: Int,
+    val pieceCoverage: Int,
     val recognitionMs: Long,
     val engineMs: Long
 )
@@ -30,7 +30,7 @@ object SessionStore {
                 put("fen", item.fen)
                 put("uci", item.uci)
                 put("timestamp", item.timestamp)
-                put("confidence", item.confidence)
+                put("pieceCoverage", item.pieceCoverage)
                 put("recognitionMs", item.recognitionMs)
                 put("engineMs", item.engineMs)
             })
@@ -49,7 +49,7 @@ object SessionStore {
                     fen = o.optString("fen"),
                     uci = o.optString("uci"),
                     timestamp = o.optLong("timestamp"),
-                    confidence = o.optInt("confidence"),
+                    pieceCoverage = o.optInt("pieceCoverage", o.optInt("confidence")),
                     recognitionMs = o.optLong("recognitionMs"),
                     engineMs = o.optLong("engineMs")
                 )
@@ -79,7 +79,7 @@ object SessionStore {
                 appendLine("[Result \"*\"]")
                 appendLine()
                 append(san)
-                append(" {UCI=${item.uci}; square-coverage=${item.confidence}%; recognition=${item.recognitionMs}ms; engine=${item.engineMs}ms} *")
+                append(" {UCI=${item.uci}; square-coverage=${item.pieceCoverage}%; recognition=${item.recognitionMs}ms; engine=${item.engineMs}ms} *")
                 appendLine()
             }
         }
