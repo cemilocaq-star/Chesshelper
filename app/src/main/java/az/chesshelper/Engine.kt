@@ -14,6 +14,7 @@ class Engine(ctx: Context) : AutoCloseable {
     private val out: BufferedWriter
     private val lines = LinkedBlockingQueue<String>()
     private val closed = AtomicBoolean(false)
+    private val stopRequested = AtomicBoolean(false)
     @Volatile private var readerFailure: Throwable? = null
 
     init {
@@ -61,8 +62,14 @@ class Engine(ctx: Context) : AutoCloseable {
         out.flush()
     }
 
+    /** Interrupts a search or marks a pending UCI operation as cancelled. */
+    fun resetCancellation() {
+        stopRequested.set(false)
+    }
+
     /** Interrupts the active search without waiting for best()'s response lock. */
     fun stopSearch() {
+        stopRequested.set(true)
         if (!searching || closed.get()) return
         try {
             synchronized(outputLock) {
@@ -77,23 +84,29 @@ class Engine(ctx: Context) : AutoCloseable {
         }
     }
 
-    private fun nextLine(timeoutMs: Long): String {
+    private fun nextLine(timeoutMs: Long, allowStopRequested: Boolean = false): String {
+        if (!allowStopRequested && stopRequested.get()) {
+            throw java.util.concurrent.CancellationException("Stockfish əməliyyatı dayandırıldı")
+        }
         readerFailure?.let { throw IllegalStateException("Stockfish oxuma xətası", it) }
         return lines.poll(timeoutMs, TimeUnit.MILLISECONDS)
             ?: throw IllegalStateException("Stockfish cavab vaxtını aşdı")
     }
 
-    private fun waitFor(token: String, timeoutMs: Long) {
+    private fun waitFor(token: String, timeoutMs: Long, allowStopRequested: Boolean = false) {
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
         while (true) {
             val left = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()).coerceAtLeast(1)
-            if (nextLine(left).startsWith(token)) return
+            if (nextLine(left, allowStopRequested).startsWith(token)) return
         }
     }
 
     /** Configures a limited ELO or unrestricted maximum strength. */
     @Synchronized
     fun configureStrength(elo: Int, maximum: Boolean = false) {
+        if (stopRequested.get()) {
+            throw java.util.concurrent.CancellationException("Stockfish əməliyyatı dayandırıldı")
+        }
         if (maximum) {
             send("setoption name UCI_LimitStrength value false")
         } else {
@@ -109,10 +122,12 @@ class Engine(ctx: Context) : AutoCloseable {
     fun best(fen: String, moveTimeMs: Int = 800): String? {
         require(moveTimeMs in 100..30_000) { "Analiz müddəti 100–30000 ms olmalıdır" }
         require(fen.isNotBlank() && !fen.contains('\n')) { "FEN yanlışdır" }
+        if (stopRequested.get()) return null
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(moveTimeMs + 5_000L)
         try {
             synchronized(outputLock) {
                 check(!closed.get() && proc.isAlive) { "Stockfish prosesi aktiv deyil" }
+                if (stopRequested.get()) return null
                 sendLocked("position fen $fen")
                 searching = true
                 sendLocked("go movetime $moveTimeMs")
@@ -129,7 +144,7 @@ class Engine(ctx: Context) : AutoCloseable {
         } catch (_: Exception) {
             try {
                 stopSearch()
-                waitFor("bestmove", 2_000)
+                waitFor("bestmove", 2_000, allowStopRequested = true)
             } catch (_: Exception) {
                 close()
             }
