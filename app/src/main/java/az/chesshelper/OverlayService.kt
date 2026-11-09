@@ -74,17 +74,15 @@ class OverlayService : Service() {
     private var lastAnalyzedPositionKey: String? = null
     private var candidatePositionKey: String? = null
     private var lastBoard: BoardRect? = null
-    private var lastPieces = 0
     private var busy = false
     private var analysisTimeSeconds = 3
     private var targetElo = 2000
     private var maxEngineStrength = false
     @Volatile private var autoRunning = false
-    private var candidatePlacement: String? = null
     private var stableFrameCount = 0
     private var lastRecognitionMs = 0L
     private var lastEngineMs = 0L
-    private var lastConfidence = 0
+    private var lastPieceCoverage = 0
     private val recognitionSamples = ArrayList<Long>()
     private val engineSamples = ArrayList<Long>()
     private var recognitionFailures = 0
@@ -568,7 +566,7 @@ class OverlayService : Service() {
     private fun showHistory() {
         val items = SessionStore.read(this).takeLast(20).asReversed()
         val message = if (items.isEmpty()) "Hələ analiz tarixçəsi yoxdur" else items.mapIndexed { i, item ->
-            "${i + 1}. ${item.uci} · xana əhatəsi ${item.confidence}% · ${item.engineMs} ms"
+            "${i + 1}. ${item.uci} · xana əhatəsi ${item.pieceCoverage}% · ${item.engineMs} ms"
         }.joinToString("\n")
         val dialog = AlertDialog.Builder(this).setTitle("Son analiz təklifləri").setMessage(message)
             .setPositiveButton("Bağla", null).create()
@@ -582,7 +580,7 @@ class OverlayService : Service() {
                     "Orta tanınma (son ${recognitionSamples.size}): ${averageMetric(recognitionSamples)} ms\n" +
                     "Son Stockfish: ${lastEngineMs} ms\n" +
                     "Orta Stockfish (son ${engineSamples.size}): ${averageMetric(engineSamples)} ms\n" +
-                    "Güclü xana əhatəsi (heuristik): ${lastConfidence}%\n" +
+                    "Güclü fiqur tanınması (heuristik): ${lastPieceCoverage}%\n" +
                     "Tanınma xətaları: $recognitionFailures · Mühərrik xətaları: $engineFailures\n" +
                     "Analiz tarixçəsi: ${SessionStore.read(this).size}/100\n" +
                     "Analiz müddəti: ${analysisTimeSeconds} s\n" +
@@ -760,10 +758,9 @@ class OverlayService : Service() {
             castling = BoardReader.updateCastling(castling, previous, reading.placement)
         }
         previousPlacement = reading.placement
-        lastPieces = reading.placement.count { it.isLetter() }
         lastRecognitionMs = SystemClock.elapsedRealtime() - recognitionStarted
         addMetric(recognitionSamples, lastRecognitionMs)
-        lastConfidence = (((64 - reading.weak.size).coerceAtLeast(0) / 64f) * 100f).toInt()
+        lastPieceCoverage = if (reading.occupiedCount == 0) 0 else (((reading.occupiedCount - reading.weak.size).coerceAtLeast(0) / reading.occupiedCount.toFloat()) * 100f).toInt()
         return Snap(board, reading, lastRecognitionMs)
     }
 
@@ -803,7 +800,7 @@ class OverlayService : Service() {
                 return
             }
             if (lastAnalyzedPositionKey == positionKey) {
-                say("Mövqe dəyişməyib · Tanınma: $lastConfidence%")
+                say("Mövqe dəyişməyib · Tanınma: $lastPieceCoverage%")
                 return
             }
         }
@@ -829,7 +826,7 @@ class OverlayService : Service() {
         lastEngineMs = SystemClock.elapsedRealtime() - engineStarted
         addMetric(engineSamples, lastEngineMs)
         lastAnalyzedPositionKey = positionKey
-        SessionStore.append(this, MoveRecord(fen, move, System.currentTimeMillis(), lastConfidence, snap.recognitionMs, lastEngineMs))
+        SessionStore.append(this, MoveRecord(fen, move, System.currentTimeMillis(), lastPieceCoverage, snap.recognitionMs, lastEngineMs))
         val from = move.substring(0, 2)
         val to = move.substring(2, 4)
         val n = reading.weak.size
