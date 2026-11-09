@@ -25,6 +25,7 @@ jobs:
 
       # Build Stockfish for Android arm64
       - name: Build Stockfish (arm64)
+        id: stockfish
         shell: bash
         run: |
           set -e
@@ -109,6 +110,8 @@ jobs:
 
       # Install Gradle 8.7
       - name: Install Gradle 8.7
+        id: gradle
+        if: always()
         shell: bash
         run: |
           set -e
@@ -144,6 +147,7 @@ jobs:
 
       # Run JVM unit tests before packaging the APK
       - name: Run unit tests
+        if: always() && steps.gradle.outcome == 'success'
         shell: bash
         run: |
           gradle --version
@@ -151,12 +155,15 @@ jobs:
 
       # Build debug APK
       - name: Build APK
+        id: apk
+        if: always() && steps.gradle.outcome == 'success' && steps.stockfish.outcome == 'success'
         shell: bash
         run: |
           gradle :app:assembleDebug --stacktrace
 
       # Upload APK
       - name: Upload APK
+        if: always() && steps.apk.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: ChessHelper-apk

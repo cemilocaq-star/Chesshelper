@@ -187,7 +187,6 @@ def read(sc, t, prev_wb=True, repair=True, detect_orientation=False):
             s = class_scores(sc[r][c], t)
             scores[r][c] = s
             best = int(np.argmax(s))
-        if s[best] >= WEAK_SCORE:
             pick[r][c] = PIECES[best]
     wr = [r for r in range(8) for c in range(8) if pick[r][c].isupper()]
     br = [r for r in range(8) for c in range(8) if pick[r][c].islower()]
@@ -202,6 +201,8 @@ def read(sc, t, prev_wb=True, repair=True, detect_orientation=False):
         return 7 - r if wb else r
 
     def reassign(r, c, banned):
+        if scores[r][c] is None:
+            return
         s = scores[r][c].copy()
         for i, p in enumerate(PIECES):
             if p in banned:
@@ -226,7 +227,8 @@ def read(sc, t, prev_wb=True, repair=True, detect_orientation=False):
                             reassign(p[0], p[1], K)
                 elif len(pos) == 0:
                     side = [(r, c) for r in range(8) for c in range(8)
-                            if pick[r][c] != "." and pick[r][c].isupper() == K.isupper()]
+                            if pick[r][c] != "." and pick[r][c].isupper() == K.isupper()
+                            and scores[r][c] is not None]
                     if side:
                         r, c = max(side, key=lambda p: scores[p[0]][p[1]][idx])
                         if scores[r][c][idx] >= WEAK_SCORE:

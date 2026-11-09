@@ -773,7 +773,9 @@ object BoardReader {
                     val side = ArrayList<IntArray>()
                     for (row in 0 until 8) for (col in 0 until 8) {
                         val ch = pick[row][col]
-                        if (ch != '.' && ch.isUpperCase() == k.isUpperCase()) side.add(intArrayOf(row, col))
+                        if (ch != '.' && ch.isUpperCase() == k.isUpperCase() &&
+                            scores[row][col] != null
+                        ) side.add(intArrayOf(row, col))
                     }
                     val q = side.maxByOrNull { scores[it[0]][it[1]]!![idx] }
                     if (q != null && scores[q[0]][q[1]]!![idx] >= WEAK_SCORE) {
