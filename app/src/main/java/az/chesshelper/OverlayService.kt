@@ -19,6 +19,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
@@ -48,19 +49,26 @@ class OverlayService : Service() {
     private var projection: MediaProjection? = null
     private var reader: ImageReader? = null
     private var display: VirtualDisplay? = null
-    private var held: Image? = null
+    private val frameLock = Any()
+    @Volatile private var latestFrame: Bitmap? = null
+    private var frameThread: HandlerThread? = null
     @Volatile private var lastFrameAt = 0L
+    @Volatile private var engine: Engine? = null
+    @Volatile private var destroyed = false
 
     private var panel: LinearLayout? = null
     private var bubble: TextView? = null
     private var arrow: ArrowView? = null
     private var status: TextView? = null
 
-    private var engine: Engine? = null
     private var templates: Templates? = null
     private var whiteBottom = true
-    private var castling = "KQkq"
+    private var castling = "-"
     private var castlingKnown = false
+    private var previousPlacement: String? = null
+    private var sideOverride: Char? = null
+    private var lastAnalyzedPositionKey: String? = null
+    private var candidatePositionKey: String? = null
     private var lastBoard: BoardRect? = null
     private var lastPieces = 0
     private var busy = false
@@ -125,13 +133,31 @@ class OverlayService : Service() {
         }, Handler(Looper.getMainLooper()))
         projection = proj
 
+        val callbackThread = HandlerThread("ChessHelperFrameCopy").apply { start() }
+        frameThread = callbackThread
         val r = ImageReader.newInstance(dm.widthPixels, dm.heightPixels, PixelFormat.RGBA_8888, 3)
         r.setOnImageAvailableListener({ rd ->
             val img = rd.acquireLatestImage() ?: return@setOnImageAvailableListener
-            held?.close()
-            held = img
-            lastFrameAt = SystemClock.uptimeMillis()
-        }, Handler(Looper.getMainLooper()))
+            try {
+                val plane = img.planes[0]
+                val rowPixels = plane.rowStride / plane.pixelStride
+                val padded = Bitmap.createBitmap(rowPixels, img.height, Bitmap.Config.ARGB_8888)
+                plane.buffer.rewind()
+                padded.copyPixelsFromBuffer(plane.buffer)
+                val frame = if (rowPixels == img.width) padded else
+                    Bitmap.createBitmap(padded, 0, 0, img.width, img.height).also { padded.recycle() }
+                synchronized(frameLock) {
+                    val old = latestFrame
+                    latestFrame = frame
+                    if (old != null && old !== frame && !old.isRecycled) old.recycle()
+                    lastFrameAt = SystemClock.uptimeMillis()
+                }
+            } catch (_: Exception) {
+                // A damaged capture is ignored; the last complete frame remains available.
+            } finally {
+                img.close()
+            }
+        }, Handler(callbackThread.looper))
         reader = r
         display = proj.createVirtualDisplay(
             "chess", dm.widthPixels, dm.heightPixels, dm.densityDpi,
@@ -141,6 +167,12 @@ class OverlayService : Service() {
         // əvvəlki oyunlardan saxlanmış şablonlar (mövzu/fiqur dəsti dəyişməyibsə yenidən kalibrə lazım deyil)
         templates = getSharedPreferences("chess", MODE_PRIVATE).getString("tpl2", null)
             ?.let { Templates.parse(it) }
+        whiteBottom = getSharedPreferences("chess", MODE_PRIVATE).getBoolean("white_bottom", true)
+        sideOverride = when (getSharedPreferences("chess", MODE_PRIVATE).getString("side_override", "auto")) {
+            "white" -> 'w'
+            "black" -> 'b'
+            else -> null
+        }
 
         analysisTimeSeconds = getSharedPreferences("chess", MODE_PRIVATE).getInt("analysis_time_seconds", 3).coerceIn(1, 30)
         targetElo = getSharedPreferences("chess", MODE_PRIVATE).getInt("target_elo", 2000).coerceIn(1320, 3000)
@@ -149,10 +181,17 @@ class OverlayService : Service() {
         say(if (templates != null) "≡ Hazırdır" else "≡ Yeni oyunun əvvəlində Başlat bas")
 
         scope.launch(Dispatchers.IO) {
+            var created: Engine? = null
             try {
-                engine = Engine(this@OverlayService)
+                created = Engine(this@OverlayService)
+                withContext(Dispatchers.Main) {
+                    if (destroyed) created.close() else engine = created
+                }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) { say("Motor xətası: ${e.message}") }
+                created?.close()
+                withContext(Dispatchers.Main) {
+                    if (!destroyed) say("Motor xətası: ${e.message}")
+                }
             }
         }
     }
@@ -211,6 +250,20 @@ class OverlayService : Service() {
 
         btn("Avtomatik başlat") { startAutomaticAnalysis() }
         btn("Dayandır") { autoRunning = false; say("Avtomatik analiz dayandırıldı") }
+        val sideButton = Button(this).apply {
+            textSize = 12f
+            isAllCaps = false
+            minHeight = 0
+            minimumHeight = 0
+            setSideButtonLabel(this)
+            setOnClickListener {
+                sideOverride = when (sideOverride) { null -> 'w'; 'w' -> 'b'; else -> null }
+                getSharedPreferences("chess", MODE_PRIVATE).edit()
+                    .putString("side_override", when (sideOverride) { 'w' -> "white"; 'b' -> "black"; else -> "auto" }).apply()
+                setSideButtonLabel(this)
+            }
+        }
+        p.addView(sideButton)
         btn("Yoxla") { if (!busy) scope.launch { guarded { inspect() } } }
         btn("Şablonu yenilə") { if (!busy) scope.launch { guarded { calibrate() } } }
         val timeButton = Button(this).apply {
@@ -406,6 +459,10 @@ class OverlayService : Service() {
         status?.text = s
     }
 
+    private fun setSideButtonLabel(button: Button) {
+        button.text = "Növbə: ${when (sideOverride) { 'w' -> "Ağ"; 'b' -> "Qara"; else -> "Avtomatik" }}"
+    }
+
     private fun startAutomaticAnalysis() {
         if (autoRunning) return
         autoRunning = true
@@ -495,34 +552,25 @@ class OverlayService : Service() {
         val previousBubbleVisibility = bubble?.visibility
         panel?.visibility = View.INVISIBLE
         bubble?.visibility = View.INVISIBLE
-        val t0 = SystemClock.uptimeMillis()
-        delay(250)
-        var waited = 0
-        while (
-            (held == null || lastFrameAt < t0 || SystemClock.uptimeMillis() - lastFrameAt < 300) &&
-            waited < 3000
-        ) {
-            delay(50)
-            waited += 50
-        }
-        val img = held
-        val bmp = try {
-            if (img == null) {
-                null
-            } else {
-                val pl = img.planes[0]
-                val rowPx = pl.rowStride / pl.pixelStride
-                val full = Bitmap.createBitmap(rowPx, img.height, Bitmap.Config.ARGB_8888)
-                pl.buffer.rewind() // eyni kadr təkrar oxunanda buffer sonda qalmasın
-                full.copyPixelsFromBuffer(pl.buffer)
-                if (rowPx != img.width) Bitmap.createBitmap(full, 0, 0, img.width, img.height) else full
+        try {
+            // Wait for one fresh frame after hiding the controls. Do not wait for a "quiet"
+            // 300ms period: screen capture is continuous, so that condition never occurs.
+            val start = SystemClock.uptimeMillis()
+            delay(350)
+            var waited = 0
+            while (lastFrameAt < start && waited < 1000) {
+                delay(25)
+                waited += 25
             }
-        } catch (e: Exception) {
-            null
+            return synchronized(frameLock) {
+                val frame = latestFrame
+                if (frame == null || frame.isRecycled) null
+                else frame.copy(Bitmap.Config.ARGB_8888, false)
+            }
+        } finally {
+            panel?.visibility = previousPanelVisibility ?: View.VISIBLE
+            bubble?.visibility = previousBubbleVisibility ?: View.VISIBLE
         }
-        panel?.visibility = previousPanelVisibility ?: View.VISIBLE
-        bubble?.visibility = previousBubbleVisibility ?: View.VISIBLE
-        return bmp
     }
 
     /** Kiçik fərqlərdə əvvəlki çərçivəni saxlayır ki, kəsim şablonlarla eyni olsun. */
@@ -536,10 +584,9 @@ class OverlayService : Service() {
     private fun applyCalibration(r: CalibResult) {
         templates = r.templates
         whiteBottom = r.whiteBottom
-        castling = "KQkq"
-        castlingKnown = true
         getSharedPreferences("chess", MODE_PRIVATE).edit()
             .putString("tpl2", r.templates.serialize())
+            .putBoolean("white_bottom", r.whiteBottom)
             .apply()
     }
 
@@ -573,9 +620,11 @@ class OverlayService : Service() {
         val board = stable(found)
         val scan = withContext(Dispatchers.Default) { BoardReader.scan(bmp, board) }
 
-        // oyunun əvvəlindəyiksə şablonlar, istiqamət və rokirovka avtomatik yenilənir
-        val fresh = withContext(Dispatchers.Default) { BoardReader.calibrate(scan) }
-        if (fresh != null) applyCalibration(fresh)
+        // Learn templates automatically only once; do not overwrite them on every early move.
+        if (templates == null) {
+            val fresh = withContext(Dispatchers.Default) { BoardReader.calibrate(scan) }
+            if (fresh != null) applyCalibration(fresh)
+        }
 
         val t = templates
         if (t == null) {
@@ -589,10 +638,20 @@ class OverlayService : Service() {
         }
         whiteBottom = reading.whiteBottom
 
-        // fiqur sayı artıbsa yeni oyundur: rokirovka tarixçəsi bilinmir
-        val pieces = reading.placement.count { it.isLetter() }
-        if (fresh == null && pieces > lastPieces) castlingKnown = false
-        lastPieces = pieces
+        // Castling rights are known only when this session observed the initial position.
+        // Thereafter they can only be removed when the original king/rook leaves its home square.
+        val previous = previousPlacement
+        if (BoardReader.isInitialPosition(reading.placement)) {
+            castling = "KQkq"
+            castlingKnown = true
+        } else if (previous != null && castlingKnown) {
+            castling = BoardReader.updateCastling(castling, previous, reading.placement)
+        } else if (previous == null) {
+            castling = "-"
+            castlingKnown = false
+        }
+        previousPlacement = reading.placement
+        lastPieces = reading.placement.count { it.isLetter() }
         lastRecognitionMs = SystemClock.elapsedRealtime() - recognitionStarted
         lastConfidence = (((64 - reading.weak.size).coerceAtLeast(0) / 64f) * 100f).toInt()
         return Snap(board, reading, lastRecognitionMs)
@@ -615,31 +674,29 @@ class OverlayService : Service() {
         val snap = snapshot() ?: return
         val board = snap.board
         val reading = snap.reading
+        val castField = if (castlingKnown) castling else "-"
+        val stm = sideOverride ?: reading.sideToMove
+        if (stm == null) {
+            say("Növbə müəyyən edilmədi. Son gediş işarəsini yoxla və ya Növbə düyməsindən Ağ/Qara seç.")
+            return
+        }
+        val fen = "${reading.placement} $stm $castField ${reading.enPassant} 0 1"
+        val positionKey = "${reading.placement}|$stm|$castField|${reading.enPassant}"
+
         if (autoRunning) {
-            if (candidatePlacement == reading.placement) {
-                stableFrameCount++
-            } else {
-                candidatePlacement = reading.placement
+            if (candidatePositionKey == positionKey) stableFrameCount++ else {
+                candidatePositionKey = positionKey
                 stableFrameCount = 1
             }
             if (stableFrameCount < 2) {
                 say("Mövqe ikinci kadrla təsdiqlənir…")
                 return
             }
-            if (lastAnalyzedPlacement == reading.placement) {
-                say("Mövqe dəyişməyib · Confidence: ${lastConfidence}%")
+            if (lastAnalyzedPositionKey == positionKey) {
+                say("Mövqe dəyişməyib · Tanınma: $lastConfidence%")
                 return
             }
         }
-
-        val castField = if (castlingKnown) {
-            castling = BoardReader.updateCastling(reading.placement, castling)
-            castling
-        } else {
-            "-"
-        }
-        val stm = reading.sideToMove ?: (if (whiteBottom) 'w' else 'b')
-        val fen = "${reading.placement} $stm $castField ${reading.enPassant} 0 1"
 
         val engineStarted = SystemClock.elapsedRealtime()
         val move = withContext(Dispatchers.IO) {
@@ -652,7 +709,7 @@ class OverlayService : Service() {
         } ?: return say("Gediş tapılmadı")
 
         lastEngineMs = SystemClock.elapsedRealtime() - engineStarted
-        lastAnalyzedPlacement = reading.placement
+        lastAnalyzedPositionKey = positionKey
         SessionStore.append(this, MoveRecord(fen, move, System.currentTimeMillis(), lastConfidence, snap.recognitionMs, lastEngineMs))
         val from = move.substring(0, 2)
         val to = move.substring(2, 4)
@@ -666,6 +723,8 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        destroyed = true
+        autoRunning = false
         scope.cancel()
         try {
             panel?.let { wm.removeView(it) }
@@ -673,11 +732,17 @@ class OverlayService : Service() {
             arrow?.let { wm.removeView(it) }
         } catch (_: Exception) {
         }
-        held?.close()
         display?.release()
         reader?.close()
+        frameThread?.quitSafely()
+        frameThread = null
+        synchronized(frameLock) {
+            latestFrame?.recycle()
+            latestFrame = null
+        }
         projection?.stop()
         engine?.close()
+        engine = null
         super.onDestroy()
     }
 }
