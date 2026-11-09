@@ -457,7 +457,12 @@ class OverlayService : Service() {
     }
 
     private fun showServiceDialog(dialog: AlertDialog) {
+        if (autoRunning) stopAutomaticAnalysis()
         dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        activeDialog = dialog
+        dialog.setOnDismissListener {
+            if (activeDialog === dialog) activeDialog = null
+        }
         dialog.show()
     }
 
@@ -617,6 +622,7 @@ class OverlayService : Service() {
 
     private fun shareExport(content: String, mime: String) {
         if (content.isBlank()) return say("İxrac üçün tarixçə boşdur")
+        if (autoRunning) stopAutomaticAnalysis()
         val send = Intent(Intent.ACTION_SEND).apply {
             type = mime
             putExtra(Intent.EXTRA_TEXT, content)
@@ -648,6 +654,9 @@ class OverlayService : Service() {
         arrow?.clear()
         val previousPanelVisibility = panel?.visibility
         val previousBubbleVisibility = bubble?.visibility
+        val dialog = activeDialog?.takeIf { it.isShowing }
+        val dialogDecor = dialog?.window?.decorView
+        val previousDialogVisibility = dialogDecor?.visibility
         val params = panelLayoutParams
         val previousPanelHeight = params?.height
         panel?.visibility = View.INVISIBLE
@@ -656,6 +665,7 @@ class OverlayService : Service() {
             panel?.let { wm.updateViewLayout(it, params) }
         }
         bubble?.visibility = View.INVISIBLE
+        dialogDecor?.visibility = View.INVISIBLE
         try {
             // Wait for one fresh frame after hiding the controls. Do not wait for a "quiet"
             // 300ms period: screen capture is continuous, so that condition never occurs.
@@ -701,6 +711,9 @@ class OverlayService : Service() {
                 }
                 panel?.visibility = previousPanelVisibility ?: View.VISIBLE
                 bubble?.visibility = previousBubbleVisibility ?: View.VISIBLE
+                if (dialog === activeDialog && dialog?.isShowing == true && dialogDecor != null) {
+                    dialogDecor.visibility = previousDialogVisibility ?: View.VISIBLE
+                }
             }
         }
     }
