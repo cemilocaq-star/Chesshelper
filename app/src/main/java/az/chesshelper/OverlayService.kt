@@ -109,6 +109,12 @@ class OverlayService : Service() {
         try {
             setup(intent.getIntExtra("code", 0), data)
         } catch (e: Exception) {
+            android.util.Log.e("ChessHelper", "Overlay service setup failed", e)
+            android.widget.Toast.makeText(
+                this,
+                "Chess Helper başlaya bilmədi: ${e.localizedMessage ?: e.javaClass.simpleName}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
             stopSelf()
         }
         return START_NOT_STICKY
