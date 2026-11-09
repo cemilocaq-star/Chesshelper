@@ -35,4 +35,18 @@ class BoardStateTest {
     fun castlingRightsCannotBeRestoredAfterTheyWereLost() {
         assertEquals("-", BoardReader.updateCastling("-", start, start))
     }
+    @Test
+    fun calibrationLayoutUsesNormalFileOrderWhenWhiteIsAtBottom() {
+        val layout = BoardReader.initialLayoutForScreen(true)
+        assertEquals("rnbqkbnr", layout[0])
+        assertEquals("RNBQKBNR", layout[7])
+    }
+
+    @Test
+    fun calibrationLayoutReversesFilesWhenBlackIsAtBottom() {
+        val layout = BoardReader.initialLayoutForScreen(false)
+        assertEquals("RNBKQBNR", layout[0])
+        assertEquals("rnbkqbnr", layout[7])
+    }
+
 }
