@@ -614,11 +614,13 @@ object BoardReader {
         if (abs(top - bottom) < 40f) return null
         val whiteBottom = bottom > top
 
-        val layout = if (whiteBottom) {
-            mapOf(0 to "rnbqkbnr", 1 to "pppppppp", 6 to "PPPPPPPP", 7 to "RNBQKBNR")
-        } else {
-            mapOf(0 to "RNBQKBNR", 1 to "PPPPPPPP", 6 to "pppppppp", 7 to "rnbqkbnr")
-        }
+        val screenLayout = initialLayoutForScreen(whiteBottom)
+        val layout = mapOf(
+            0 to screenLayout[0],
+            1 to screenLayout[1],
+            6 to screenLayout[6],
+            7 to screenLayout[7]
+        )
 
         val map = HashMap<Char, ArrayList<Sample>>()
         var wl = 0f
@@ -855,6 +857,19 @@ object BoardReader {
 
     private const val START_PLACEMENT =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+
+    /**
+     * Expected piece symbols by screenshot row, from screen-left to screen-right.
+     * A black-bottom board is rotated 180 degrees, so each back rank is reversed.
+     */
+    fun initialLayoutForScreen(whiteBottom: Boolean): List<String> =
+        if (whiteBottom) {
+            listOf("rnbqkbnr", "pppppppp", "........", "........",
+                "........", "........", "PPPPPPPP", "RNBQKBNR")
+        } else {
+            listOf("RNBKQBNR", "PPPPPPPP", "........", "........",
+                "........", "........", "pppppppp", "rnbkqbnr")
+        }
 
     fun isInitialPosition(placement: String): Boolean = placement == START_PLACEMENT
 
