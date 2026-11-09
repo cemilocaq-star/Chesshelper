@@ -67,6 +67,7 @@ class OverlayService : Service() {
     private var sideButtonControl: Button? = null
     private var arrow: ArrowView? = null
     private var status: TextView? = null
+    private var activeDialog: AlertDialog? = null
 
     private var templates: Templates? = null
     private var whiteBottom = true
@@ -576,6 +577,20 @@ class OverlayService : Service() {
                 }
                 delay(900)
             }
+        }
+    }
+
+    private fun applyPanelTheme(target: LinearLayout) {
+        val dp = resources.displayMetrics.density
+        val theme = getSharedPreferences("chess", MODE_PRIVATE).getString("theme", "dark")
+        val color = when (theme) {
+            "midnight" -> Color.rgb(10, 22, 48)
+            "amoled" -> Color.BLACK
+            else -> Color.rgb(20, 20, 20)
+        }
+        target.background = GradientDrawable().apply {
+            setColor(Color.argb(235, Color.red(color), Color.green(color), Color.blue(color)))
+            cornerRadius = 12 * dp
         }
     }
 
