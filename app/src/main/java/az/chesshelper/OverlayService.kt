@@ -94,6 +94,16 @@ class OverlayService : Service() {
     private val engineSamples = ArrayList<Long>()
     private var recognitionFailures = 0
     private var engineFailures = 0
+    private val settingsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+        when (key) {
+            "analysis_time_seconds" -> analysisTimeSeconds =
+                prefs.getInt("analysis_time_seconds", 3).coerceIn(1, 30)
+            "target_elo" -> targetElo =
+                prefs.getInt("target_elo", 2000).coerceIn(1320, 3000)
+            "max_engine_strength" -> maxEngineStrength =
+                prefs.getBoolean("max_engine_strength", false)
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -184,6 +194,7 @@ class OverlayService : Service() {
         templates = getSharedPreferences("chess", MODE_PRIVATE).getString("tpl2", null)
             ?.let { Templates.parse(it) }
         val prefs = getSharedPreferences("chess", MODE_PRIVATE)
+        prefs.registerOnSharedPreferenceChangeListener(settingsListener)
         whiteBottom = prefs.getBoolean("white_bottom", true)
         orientationKnown = prefs.contains("white_bottom")
         // Manual side selection is deliberately session-local and one-shot.
@@ -597,7 +608,8 @@ class OverlayService : Service() {
                     "Tanınma xətaları: $recognitionFailures · Mühərrik xətaları: $engineFailures\n" +
                     "Analiz tarixçəsi: ${SessionStore.read(this).size}/100\n" +
                     "Analiz müddəti: ${analysisTimeSeconds} s\n" +
-                    "Mühərrik: ${if (maxEngineStrength) "Maksimum" else targetElo}"
+                    "Mühərrik: ${if (maxEngineStrength) "Maksimum" else targetElo}\n" +
+                    "Düşünmə rejimi: ${when (getSharedPreferences("chess", MODE_PRIVATE).getString("thinking_mode", "balanced")) { "fast" -> "Sürətli"; "deep" -> "Dərin"; "custom" -> "Xüsusi"; else -> "Balanslı" }}"
             )
             .setPositiveButton("Bağla", null).create()
         showServiceDialog(dialog)
@@ -934,6 +946,8 @@ class OverlayService : Service() {
         autoJob?.cancel()
         autoJob = null
         scope.cancel()
+        getSharedPreferences("chess", MODE_PRIVATE)
+            .unregisterOnSharedPreferenceChangeListener(settingsListener)
         try {
             panel?.let { wm.removeView(it) }
             bubble?.let { wm.removeView(it) }
