@@ -878,11 +878,15 @@ class OverlayService : Service() {
             }
         }
 
+        // Snapshot UI settings before crossing to the IO dispatcher.
+        val requestedElo = targetElo
+        val useMaximumStrength = maxEngineStrength
+        val requestedMoveTimeMs = analysisTimeSeconds * 1000
         val engineStarted = SystemClock.elapsedRealtime()
         val move = try {
             withContext(Dispatchers.IO) {
-                eng.configureStrength(targetElo, maxEngineStrength)
-                eng.best(fen, analysisTimeSeconds * 1000)
+                eng.configureStrength(requestedElo, useMaximumStrength)
+                eng.best(fen, requestedMoveTimeMs)
             }
         } catch (_: Exception) {
             null
