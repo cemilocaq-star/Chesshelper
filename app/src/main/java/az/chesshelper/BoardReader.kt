@@ -846,7 +846,9 @@ object BoardReader {
             if (dest != null && from != null) {
                 val mover = grid[dest[0]][dest[1]]
                 side = if (mover.isUpperCase()) 'b' else 'w'
-                if ((mover == 'P' || mover == 'p') && dest[1] == from[1] && abs(dest[0] - from[0]) == 2) {
+                val whiteDoublePush = mover == 'P' && from[0] == 1 && dest[0] == 3
+                val blackDoublePush = mover == 'p' && from[0] == 6 && dest[0] == 4
+                if (dest[1] == from[1] && (whiteDoublePush || blackDoublePush)) {
                     val mid = (dest[0] + from[0]) / 2
                     ep = "${'a' + dest[1]}${mid + 1}"
                 }

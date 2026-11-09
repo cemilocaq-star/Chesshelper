@@ -34,6 +34,18 @@ class ChessNotationTest {
         assertNull(ChessNotation.sanFor(start, "e2e"))
     }
     @Test
+    fun convertsEnPassantCaptureToSan() {
+        val epFen = "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1"
+        assertEquals("exd6", ChessNotation.sanFor(epFen, "e5d6"))
+    }
+
+    @Test
+    fun convertsPromotionToSanAndDetectsCheck() {
+        val promotionFen = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1"
+        assertEquals("a8=Q+", ChessNotation.sanFor(promotionFen, "a7a8q"))
+    }
+
+    @Test
     fun formatsWhiteRecommendationWithMoveNumber() {
         assertEquals("1. e4", ChessNotation.sanWithMoveNumber(start, "e2e4"))
     }

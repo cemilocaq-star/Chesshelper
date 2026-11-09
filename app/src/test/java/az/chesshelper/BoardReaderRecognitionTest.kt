@@ -155,6 +155,15 @@ class BoardReaderRecognitionTest {
     }
 
     @Test
+    fun doesNotInventEnPassantForAPawnThatMovedTwoSquaresFromTheWrongRank() {
+        val position = "4k3/8/8/4P3/8/8/8/4K3"
+        val result = readPosition(position, lastMove = "e3e5")
+        assertEquals(position, result?.placement)
+        assertEquals('b', result?.sideToMove)
+        assertEquals("-", result?.enPassant)
+    }
+
+    @Test
     fun rejectsAPositionWithoutARealWhiteKingInsteadOfFabricatingOne() {
         val missingKing = "4k3/8/8/8/8/8/8/R3R3"
         assertNull(readPosition(missingKing))
