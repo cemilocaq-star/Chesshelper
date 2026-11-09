@@ -125,7 +125,9 @@ if __name__ == "__main__":
     g = [list(r) for r in START]
     cases = [("green", "dejavu", 0, 520, 135, 1080, 2400), ("brown", "freeserif", 0, 480, 135, 1080, 2340),
              ("blue", "dejavu", 20, 600, 130, 1080, 2400), ("gray", "freeserif", 0, 300, 112, 900, 1600),
-             ("green", "dejavu", 0, 700, 160, 1280, 2800)]
+             ("green", "dejavu", 0, 700, 160, 1280, 2800),
+             # Phone-sized board with the dark blue-gray colors from the supplied Chess.com screenshot.
+             ("chesscom", "freeserif", 0, 458, 86.375, 691, 1536)]
     failures = []
     for th, fn, x, y, S, W, H in cases:
         for wb in (True, False):
