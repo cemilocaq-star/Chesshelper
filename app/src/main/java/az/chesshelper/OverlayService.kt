@@ -76,7 +76,6 @@ class OverlayService : Service() {
     private var targetElo = 2000
     private var maxEngineStrength = false
     @Volatile private var autoRunning = false
-    private var lastAnalyzedPlacement: String? = null
     private var candidatePlacement: String? = null
     private var stableFrameCount = 0
     private var lastRecognitionMs = 0L
@@ -181,14 +180,12 @@ class OverlayService : Service() {
         say(if (templates != null) "≡ Hazırdır" else "≡ Yeni oyunun əvvəlində Başlat bas")
 
         scope.launch(Dispatchers.IO) {
-            var created: Engine? = null
             try {
-                created = Engine(this@OverlayService)
+                val created = Engine(this@OverlayService)
                 withContext(Dispatchers.Main) {
                     if (destroyed) created.close() else engine = created
                 }
             } catch (e: Exception) {
-                created?.close()
                 withContext(Dispatchers.Main) {
                     if (!destroyed) say("Motor xətası: ${e.message}")
                 }
@@ -466,7 +463,9 @@ class OverlayService : Service() {
     private fun startAutomaticAnalysis() {
         if (autoRunning) return
         autoRunning = true
-        lastAnalyzedPlacement = null
+        lastAnalyzedPositionKey = null
+        candidatePositionKey = null
+        stableFrameCount = 0
         say("Avtomatik tanıma başladıldı")
         scope.launch {
             while (autoRunning) {
