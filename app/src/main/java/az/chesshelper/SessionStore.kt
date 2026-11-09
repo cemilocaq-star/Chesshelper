@@ -38,6 +38,7 @@ object SessionStore {
         prefs.edit().putString(KEY_HISTORY, array.toString()).apply()
     }
 
+    @Synchronized
     fun read(context: Context): List<MoveRecord> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_HISTORY, null) ?: return emptyList()
