@@ -70,7 +70,7 @@ class MainActivity : Activity() {
                 "custom" -> "Xüsusi"
                 else -> "Balanslı"
             }
-            val seconds = prefs.getInt("analysis_time_seconds", 3)
+            val seconds = prefs.getInt("analysis_time_ms", prefs.getInt("analysis_time_seconds", 3) * 1000) / 1000f
             val theme = when (prefs.getString("theme", "dark")) {
                 "midnight" -> "Midnight Blue"
                 "amoled" -> "AMOLED"
@@ -116,21 +116,26 @@ class MainActivity : Activity() {
                 }.show()
         }
         addSettingButton("Düşünmə rejimi") {
-            val modes = arrayOf("Sürətli · 1 saniyə", "Balanslı · 3 saniyə", "Dərin · 10 saniyə", "Xüsusi")
+            val modes = arrayOf("Çox sürətli · 0.5 saniyə", "Sürətli · 1 saniyə", "Balanslı · 3 saniyə", "Dərin · 10 saniyə", "Xüsusi")
             AlertDialog.Builder(this)
                 .setTitle("Analiz düşünmə rejimi")
                 .setItems(modes) { _, selected ->
                     when (selected) {
-                        0 -> saveThinkingMode("fast", 1)
-                        1 -> saveThinkingMode("balanced", 3)
-                        2 -> saveThinkingMode("deep", 10)
-                        3 -> showCustomThinkingDialog(prefs.getInt("analysis_time_seconds", 3)) { refreshSummary() }
+                        0 -> saveThinkingMode("very_fast", 500)
+                        1 -> saveThinkingMode("fast", 1000)
+                        2 -> saveThinkingMode("balanced", 3000)
+                        3 -> saveThinkingMode("deep", 10000)
+                        4 -> showCustomThinkingDialog(
+                            prefs.getInt("analysis_time_ms", prefs.getInt("analysis_time_seconds", 3) * 1000)
+                        ) { refreshSummary() }
                     }
                     refreshSummary()
                 }.show()
         }
         addSettingButton("Xüsusi rejimi tənzimlə") {
-            showCustomThinkingDialog(prefs.getInt("analysis_time_seconds", 3)) { refreshSummary() }
+            showCustomThinkingDialog(
+                prefs.getInt("analysis_time_ms", prefs.getInt("analysis_time_seconds", 3) * 1000)
+            ) { refreshSummary() }
         }
         addSettingButton("Mövzu") {
             val themes = arrayOf("Dark", "Midnight Blue", "AMOLED")
@@ -150,18 +155,21 @@ class MainActivity : Activity() {
             .show()
     }
 
-    private fun saveThinkingMode(mode: String, seconds: Int) {
+    private fun saveThinkingMode(mode: String, milliseconds: Int) {
+        val safeMs = milliseconds.coerceIn(500, 30_000)
         getSharedPreferences("chess", MODE_PRIVATE).edit()
             .putString("thinking_mode", mode)
-            .putInt("analysis_time_seconds", seconds.coerceIn(1, 30))
+            .putInt("analysis_time_ms", safeMs)
+            .putInt("analysis_time_seconds", (safeMs / 1000f).toInt().coerceAtLeast(1))
             .apply()
     }
 
-    private fun showCustomThinkingDialog(initialSeconds: Int, onSaved: () -> Unit = {}) {
+    private fun showCustomThinkingDialog(initialMs: Int, onSaved: () -> Unit = {}) {
         val input = android.widget.EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            hint = "1–30 saniyə"
-            setText(initialSeconds.coerceIn(1, 30).toString())
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            hint = "0.5–30 saniyə"
+            setText(String.format(java.util.Locale.US, "%.1f", initialMs.coerceIn(500, 30_000) / 1000f))
             setSelection(text.length)
         }
         val container = LinearLayout(this).apply {
@@ -169,7 +177,7 @@ class MainActivity : Activity() {
             val pad = (20 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad / 2, pad, 0)
             addView(TextView(this@MainActivity).apply {
-                text = "Stockfish-in hər mövqe üçün düşünmə vaxtını seç (1–30 saniyə)."
+                text = "Stockfish-in hər mövqe üçün vaxtını seç (0.5–30 saniyə, 0.5 saniyə addımla)."
                 textSize = 14f
             })
             addView(input)
@@ -179,13 +187,20 @@ class MainActivity : Activity() {
             .setView(container)
             .setNegativeButton("Ləğv et", null)
             .setPositiveButton("Yadda saxla") { _, _ ->
-                val seconds = input.text.toString().toIntOrNull()
-                if (seconds == null || seconds !in 1..30) {
-                    android.widget.Toast.makeText(this, "1–30 saniyə arası dəyər daxil et", android.widget.Toast.LENGTH_LONG).show()
+                val value = input.text.toString().replace(',', '.').toDoubleOrNull()
+                val ms = value?.let { (it * 1000.0).toInt() }
+                if (ms == null || ms !in 500..30_000 || ms % 500 != 0) {
+                    android.widget.Toast.makeText(
+                        this, "0.5–30 saniyə arası, 0.5 addımla daxil et",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
                 } else {
-                    saveThinkingMode("custom", seconds)
+                    saveThinkingMode("custom", ms)
                     onSaved()
-                    android.widget.Toast.makeText(this, "Xüsusi rejim yadda saxlanıldı: ${seconds}s", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(
+                        this, "Xüsusi rejim yadda saxlanıldı: ${ms / 1000f}s",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
             }.show()
     }
