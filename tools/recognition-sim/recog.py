@@ -122,7 +122,7 @@ def calibrate(sc):
         return None
     wb = bot > top
     layout = {0: "rnbqkbnr", 1: "pppppppp", 6: "PPPPPPPP", 7: "RNBQKBNR"} if wb else \
-             {0: "RNBKQBNR", 1: "PPPPPPPP", 6: "pppppppp", 7: "rnbkqbnr"}
+             {0: "RNBQKBNR", 1: "PPPPPPPP", 6: "pppppppp", 7: "rnbqkbnr"}
     t = Templates()
     wl, bl = [], []
     for r, line in layout.items():
@@ -151,7 +151,7 @@ def class_scores(q, t):
         out[i] = best if sides_ok else best - 0.08
     return out
 
-def read(sc, t, prev_wb=True, repair=True):
+def read(sc, t, prev_wb=True, repair=True, detect_orientation=False):
     scores = [[None] * 8 for _ in range(8)]
     pick = [["."] * 8 for _ in range(8)]
     for r in range(8):
@@ -166,7 +166,9 @@ def read(sc, t, prev_wb=True, repair=True):
     if not wr or not br:
         return None
     delta = np.mean(wr) - np.mean(br)
-    wb = True if delta > 0.6 else False if delta < -0.6 else prev_wb
+    inferred_wb = True if delta > 0.6 else False if delta < -0.6 else prev_wb
+    # Match Kotlin: infer orientation at initial calibration only, then lock it for the session.
+    wb = inferred_wb if detect_orientation else prev_wb
 
     def rank_of(r):
         return 7 - r if wb else r
