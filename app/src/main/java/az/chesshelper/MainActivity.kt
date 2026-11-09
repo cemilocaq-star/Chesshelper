@@ -32,8 +32,8 @@ class MainActivity : Activity() {
             text = "Chess Helper\n\n" +
                 "1) Başlat düyməsinə bas və ekran/overlay icazələrini ver.\n" +
                 "2) Şahmat taxtası ekranda tam görünsün. Yeni oyunun əvvəlində üzən paneldə Avtomatik başlat seçərək fiqur şablonlarını öyrət.\n" +
-                "3) Sonrakı mövqe dəyişiklikləri avtomatik oxunur; Dayandır düyməsi prosesi dayandırır.\n" +
-                "4) Növbə avtomatik bilinmirsə Növbə düyməsindən Ağ və ya Qara seç. Yoxla düyməsi şübhəli xanaları göstərir.\n" +
+                "3) Sonrakı mövqe dəyişiklikləri avtomatik oxunur; Dayandır düyməsi prosesi dayandırır. Yeni matça keçəndə Yeni oyun düyməsini bas.\n" +
+                "4) Növbə avtomatik bilinmirsə Növbə düyməsindən Ağ və ya Qara seç. Bu seçim yalnız növbəti uğurlu analiz üçün keçərlidir. Yoxla düyməsi şübhəli xanaları göstərir.\n" +
                 "5) Analiz nəticələri tarixçədə saxlanır; PGN/UCI ixracı hər FEN mövqeyi üçün ayrıca mühərrik tövsiyəsidir, real oynanmış oyun tarixçəsi deyil.\n\n" +
                 "Yalnız şəxsi təhlil, bot oyunları və bütün iştirakçıların razı olduğu oyunlar üçün istifadə et. Platforma və turnir qaydalarına əməl et."
             textSize = 16f
