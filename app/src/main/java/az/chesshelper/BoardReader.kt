@@ -686,7 +686,12 @@ object BoardReader {
      * (son gedişin işıqlandırmasından). Qeyri-mümkün vəziyyətlər (ikinci şah, son sırada piyada,
      * 8-dən çox piyada) ikinci ən yaxşı variantla düzəldilir. Mümkün deyilsə null.
      */
-    fun read(s: Scan, t: Templates, prevWhiteBottom: Boolean): Reading? {
+    fun read(
+        s: Scan,
+        t: Templates,
+        prevWhiteBottom: Boolean,
+        detectOrientation: Boolean = false
+    ): Reading? {
         val info = s.info
         val scores = Array(8) { arrayOfNulls<FloatArray>(8) }
         val pick = Array(8) { CharArray(8) { '.' } }
@@ -714,11 +719,14 @@ object BoardReader {
         }
         if (wN == 0 || bN == 0) return null
         val delta = wRows / wN - bRows / bN
-        val whiteBottom = when {
+        // Orientation is calibrated once and then locked. Re-inferring it from moving pieces
+        // every frame can flip the board after pawns advance or material is captured.
+        val inferredWhiteBottom = when {
             delta > 0.6f -> true
             delta < -0.6f -> false
             else -> prevWhiteBottom
         }
+        val whiteBottom = if (detectOrientation) inferredWhiteBottom else prevWhiteBottom
         fun rankOf(row: Int) = if (whiteBottom) 7 - row else row
 
         fun reassign(row: Int, col: Int, banned: String) {
