@@ -884,7 +884,7 @@ class OverlayService : Service() {
 
     private fun announceRookMeme() {
         say("♜ THE ROOOOOK!")
-        memeTts?.speak("The rook!", TextToSpeech.QUEUE_FLUSH, null, "rook-sacrifice-meme")
+        memeTts?.speak("The roooooook!", TextToSpeech.QUEUE_FLUSH, null, "rook-sacrifice-meme")
     }
 
     /** Oxunmuş taxtanı ekranın üstündə göstərir ki, tanımanın düzgünlüyü yoxlanılsın. */
