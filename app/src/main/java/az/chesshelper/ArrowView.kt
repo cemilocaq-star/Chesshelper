@@ -77,6 +77,8 @@ class ArrowView(c: Context) : View(c) {
     private val shapes = HashMap<Char, Path>()
     private val tmp = Path()
     private val mtx = Matrix()
+    private val screenMatrix = Matrix()
+    private val screenLocation = IntArray(2)
 
     private var pts: FloatArray? = null
     private var piece: Char = 'p'
@@ -266,8 +268,14 @@ class ArrowView(c: Context) : View(c) {
         // different dimensions because of Android insets or OEM window sizing.
         val sx = if (sourceWidth > 0 && width > 0) width.toFloat() / sourceWidth else 1f
         val sy = if (sourceHeight > 0 && height > 0) height.toFloat() / sourceHeight else 1f
+        getLocationOnScreen(screenLocation)
+        screenMatrix.setValues(floatArrayOf(
+            sx, 0f, -screenLocation[0] * sx,
+            0f, sy, -screenLocation[1] * sy,
+            0f, 0f, 1f
+        ))
         canvas.save()
-        canvas.scale(sx, sy)
+        canvas.concat(screenMatrix)
         val br = boardRect
         val sg = screenGrid
         if (br != null && sg != null) {
