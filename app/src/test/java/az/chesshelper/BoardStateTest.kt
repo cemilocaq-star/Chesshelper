@@ -49,4 +49,28 @@ class BoardStateTest {
         assertEquals("rnbkqbnr", layout[7])
     }
 
+    @Test
+    fun whiteBottomSquareCentersMatchScreenCoordinates() {
+        val board = BoardRect(0, 458, 691)
+        val a1 = BoardReader.center(board, "a1", true)
+        val h8 = BoardReader.center(board, "h8", true)
+        val square = 691f / 8f
+        assertEquals(square / 2f, a1.first, 0.01f)
+        assertEquals(458f + 7.5f * square, a1.second, 0.01f)
+        assertEquals(7.5f * square, h8.first, 0.01f)
+        assertEquals(458f + square / 2f, h8.second, 0.01f)
+    }
+
+    @Test
+    fun blackBottomSquareCentersRotateBothAxes() {
+        val board = BoardRect(0, 458, 691)
+        val a1 = BoardReader.center(board, "a1", false)
+        val h8 = BoardReader.center(board, "h8", false)
+        val square = 691f / 8f
+        assertEquals(7.5f * square, a1.first, 0.01f)
+        assertEquals(458f + square / 2f, a1.second, 0.01f)
+        assertEquals(square / 2f, h8.first, 0.01f)
+        assertEquals(458f + 7.5f * square, h8.second, 0.01f)
+    }
+
 }
