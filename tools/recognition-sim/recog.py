@@ -67,6 +67,7 @@ def analyze(px):
         bw = (xs.max() - xs.min() + 1) / mask.shape[1]
     else:
         bh = bw = 0
+    s.bh, s.bw = float(bh), float(bw)
     s.occupied = s.cover >= MIN_COVER and bh >= MIN_BBOX and bw >= MIN_BBOX
     L = lum(crop)
     vals = L[mask]
@@ -117,7 +118,10 @@ def calibrate(sc):
     emptyHome = sum(1 for r in range(8) for c in range(8) if (r <= 1 or r >= 6) and not occ[r][c])
     midOcc = sum(1 for r in range(8) for c in range(8) if (2 <= r <= 5) and occ[r][c])
     if emptyHome > 2 or midOcc > 2 or emptyHome != midOcc:
-        LAST_CALIBRATION_FAILURE = f'occupancy mismatch: emptyHome={emptyHome}, midOcc={midOcc}'
+        missing = [(r, c, round(sc[r][c].cover, 3), round(sc[r][c].bh, 3), round(sc[r][c].bw, 3))
+                   for r in range(8) for c in range(8) if (r <= 1 or r >= 6) and not occ[r][c]]
+        extras = [(r, c) for r in range(2, 6) for c in range(8) if occ[r][c]]
+        LAST_CALIBRATION_FAILURE = f'occupancy mismatch: emptyHome={emptyHome}, midOcc={midOcc}, missing={missing}, extras={extras}'
         return None
     def mean(rows):
         v = [sc[r][c].fill for r in rows for c in range(8) if occ[r][c]]
