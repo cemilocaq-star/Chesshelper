@@ -70,6 +70,7 @@ class OverlayService : Service() {
     private var activeDialog: AlertDialog? = null
 
     private var templates: Templates? = null
+    private var calibrationLockedThisGame = false
     private var whiteBottom = true
     private var orientationKnown = false
     private var castling = "-"
@@ -480,6 +481,7 @@ class OverlayService : Service() {
         castling = "-"
         castlingKnown = false
         orientationKnown = false
+        calibrationLockedThisGame = false
         sideOverride = null
         getSharedPreferences("chess", MODE_PRIVATE).edit()
             .remove("white_bottom")
@@ -680,6 +682,7 @@ class OverlayService : Service() {
 
     private fun applyCalibration(r: CalibResult) {
         templates = r.templates
+        calibrationLockedThisGame = true
         whiteBottom = r.whiteBottom
         orientationKnown = true
         getSharedPreferences("chess", MODE_PRIVATE).edit()
@@ -749,15 +752,17 @@ class OverlayService : Service() {
             if (!bmp.isRecycled) bmp.recycle()
         }
 
-        // Learn templates automatically only once; do not overwrite them on every early move.
-        if (templates == null) {
+        // Re-learn the current board style at the start of every game/session, even when
+        // templates were loaded from preferences. Saved templates may belong to another
+        // Chess.com piece set, board theme, or screen scale.
+        if (!calibrationLockedThisGame) {
             val fresh = withContext(Dispatchers.Default) { BoardReader.calibrate(scan) }
             if (fresh != null) applyCalibration(fresh)
         }
 
         val t = templates
         if (t == null) {
-            say("Şablon yoxdur: yeni oyunun ilk 1-2 gedişində bir dəfə Başlat bas")
+            say("Şablon yoxdur: yeni oyunun başlanğıc taxtasını göstər və Şablonu yenilə bas")
             return null
         }
         val reading = withContext(Dispatchers.Default) {
@@ -765,7 +770,11 @@ class OverlayService : Service() {
         }
         if (reading == null) {
             recognitionFailures++
-            say("Taxta oxunmadı (fiqur dəsti dəyişibsə yeni oyunun əvvəlində şablonu yenilə)")
+            say(
+                "Lövhə tapıldı: x=${board.x}, y=${board.y}, " +
+                    "${board.size}px; fiqur oxunmadı. Eyni oyunun başlanğıc mövqeyində " +
+                    "Şablonu yenilə et; bu, əvvəlki fiqur dəstinin şablonunu əvəz edəcək."
+            )
             return null
         }
         whiteBottom = reading.whiteBottom
