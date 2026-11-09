@@ -126,6 +126,7 @@ if __name__ == "__main__":
     cases = [("green", "dejavu", 0, 520, 135, 1080, 2400), ("brown", "freeserif", 0, 480, 135, 1080, 2340),
              ("blue", "dejavu", 20, 600, 130, 1080, 2400), ("gray", "freeserif", 0, 300, 112, 900, 1600),
              ("green", "dejavu", 0, 700, 160, 1280, 2800)]
+    failures = []
     for th, fn, x, y, S, W, H in cases:
         for wb in (True, False):
             img = fake_screen(th, fn, g, wb, x, y, S, W, H)
@@ -133,3 +134,7 @@ if __name__ == "__main__":
             want = (x, y, 8 * S)
             ok = got is not None and all(abs(got[i] - want[i]) <= 4 for i in range(3))
             print(f"{th:6s} {W}x{H} S={S} wb={wb}: want {want} got {got} {'OK' if ok else 'FAIL'}")
+            if not ok:
+                failures.append((th, W, H, S, wb, want, got))
+    if failures:
+        raise SystemExit(f"Board detection simulation failed: {failures}")
