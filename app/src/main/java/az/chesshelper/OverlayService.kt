@@ -470,12 +470,13 @@ class OverlayService : Service() {
         val choices = arrayOf("Fast — 1 saniyə", "Normal — 3 saniyə", "Deep — 10 saniyə", "Custom — 1–30 saniyə")
         val dialog = AlertDialog.Builder(this)
             .setTitle("Təhlil müddəti")
-            .setItems(choices) { _, which ->
+            .setItems(choices) { parentDialog, which ->
                 when (which) {
                     0 -> setAnalysisTime(1, button)
                     1 -> setAnalysisTime(3, button)
                     2 -> setAnalysisTime(10, button)
                     3 -> {
+                        parentDialog.dismiss()
                         val input = EditText(this).apply {
                             inputType = InputType.TYPE_CLASS_NUMBER
                             hint = "1–30 saniyə"
