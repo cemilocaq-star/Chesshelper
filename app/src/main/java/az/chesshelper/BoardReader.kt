@@ -103,8 +103,10 @@ class Reading(
     val enPassant: String,
     /** Oxunmuş fiqurlar ekran koordinatlarında [sətir][sütun], boş xana '.'. */
     val screen: Array<CharArray>,
-    /** Şübhəli xanalar (sətir * 8 + sütun). */
-    val weak: Set<Int>
+    /** Şübhəli fiqur xanaları (sətir * 8 + sütun). */
+    val weak: Set<Int>,
+    /** Number of squares classified as occupied after position constraints. */
+    val occupiedCount: Int
 )
 
 private fun normalize(v: FloatArray): FloatArray {
@@ -846,7 +848,7 @@ object BoardReader {
             if (empty > 0) sb.append(empty)
             if (rank > 0) sb.append('/')
         }
-        return Reading(sb.toString(), whiteBottom, side, ep, pick, weak)
+        return Reading(sb.toString(), whiteBottom, side, ep, pick, weak, wAll + bAll)
     }
 
     // ---------------------------------------------------------------- köməkçilər
