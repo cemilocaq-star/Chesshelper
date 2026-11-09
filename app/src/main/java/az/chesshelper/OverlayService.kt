@@ -81,7 +81,7 @@ class OverlayService : Service() {
     private var candidatePositionKey: String? = null
     private var lastBoard: BoardRect? = null
     private var busy = false
-    private var analysisTimeSeconds = 3
+    private var analysisTimeMs = 3000
     private var targetElo = 2000
     private var maxEngineStrength = false
     @Volatile private var autoRunning = false
@@ -97,7 +97,7 @@ class OverlayService : Service() {
     private var engineFailures = 0
     private val settingsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
         when (key) {
-            "analysis_time_ms", "analysis_time_seconds" -> analysisTimeSeconds =
+            "analysis_time_ms", "analysis_time_seconds" -> analysisTimeMs =
                 (prefs.getInt("analysis_time_ms", prefs.getInt("analysis_time_seconds", 3) * 1000))
                     .coerceIn(500, 30_000)
             "target_elo" -> targetElo =
@@ -203,7 +203,7 @@ class OverlayService : Service() {
         sideOverride = null
 
         val settingsPrefs = getSharedPreferences("chess", MODE_PRIVATE)
-        analysisTimeSeconds = settingsPrefs.getInt(
+        analysisTimeMs = settingsPrefs.getInt(
             "analysis_time_ms", settingsPrefs.getInt("analysis_time_seconds", 3) * 1000
         ).coerceIn(500, 30_000)
         targetElo = getSharedPreferences("chess", MODE_PRIVATE).getInt("target_elo", 2000).coerceIn(1320, 3000)
@@ -566,7 +566,7 @@ class OverlayService : Service() {
                     "Güclü fiqur tanınması (heuristik): ${lastPieceCoverage}%\n" +
                     "Tanınma xətaları: $recognitionFailures · Mühərrik xətaları: $engineFailures\n" +
                     "Analiz tarixçəsi: ${SessionStore.read(this).size}/100\n" +
-                    "Analiz müddəti: ${analysisTimeSeconds / 1000f} s\n" +
+                    "Analiz müddəti: ${analysisTimeMs / 1000f} s\n" +
                     "Mühərrik: ${if (maxEngineStrength) "Maksimum" else targetElo}\n" +
                     "Düşünmə rejimi: ${when (getSharedPreferences("chess", MODE_PRIVATE).getString("thinking_mode", "balanced")) { "fast" -> "Sürətli"; "deep" -> "Dərin"; "custom" -> "Xüsusi"; else -> "Balanslı" }}"
             )
@@ -862,7 +862,7 @@ class OverlayService : Service() {
         // Snapshot UI settings before crossing to the IO dispatcher.
         val requestedElo = targetElo
         val useMaximumStrength = maxEngineStrength
-        val requestedMoveTimeMs = analysisTimeSeconds
+        val requestedMoveTimeMs = analysisTimeMs
         val engineStarted = SystemClock.elapsedRealtime()
         val move = try {
             withContext(Dispatchers.IO) {
