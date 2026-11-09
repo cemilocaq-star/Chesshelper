@@ -53,11 +53,19 @@ def trial(theme, calfont, testfont, seed, shift=0, repair=True, n=25):
     return ok, tot, rows
 
 if __name__ == "__main__":
+    failures = []
     for th in THEMES:
         for font in ("dejavu", "freeserif"):
-            r = trial(th, font, font, seed=1)
-            if r is None:
-                print(th, font, "CALIBRATION FAILED"); continue
-            ok, tot, rows = r
+            result = trial(th, font, font, seed=1)
+            if result is None:
+                print(th, font, "CALIBRATION FAILED")
+                failures.append((th, font, "calibration"))
+                continue
+            ok, tot, rows = result
             from collections import Counter
-            print(f"{th:6s} {font:10s} {ok}/{tot} = {100*ok/tot:.2f}%  errors: {Counter(map(str,rows)).most_common(4)}")
+            accuracy = 100 * ok / tot
+            print(f"{th:6s} {font:10s} {ok}/{tot} = {accuracy:.2f}%  errors: {Counter(map(str,rows)).most_common(4)}")
+            if accuracy < 95.0:
+                failures.append((th, font, f"accuracy={accuracy:.2f}%"))
+    if failures:
+        raise SystemExit(f"Recognition simulation failed: {failures}")
