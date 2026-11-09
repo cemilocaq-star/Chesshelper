@@ -33,4 +33,15 @@ class ChessNotationTest {
     fun rejectsMalformedUci() {
         assertNull(ChessNotation.sanFor(start, "e2e"))
     }
+    @Test
+    fun formatsWhiteRecommendationWithMoveNumber() {
+        assertEquals("1. e4", ChessNotation.sanWithMoveNumber(start, "e2e4"))
+    }
+
+    @Test
+    fun formatsBlackRecommendationWithEllipsis() {
+        val afterE4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        assertEquals("1... e5", ChessNotation.sanWithMoveNumber(afterE4, "e7e5"))
+    }
+
 }
