@@ -727,6 +727,7 @@ class OverlayService : Service() {
         val recognitionStarted = SystemClock.elapsedRealtime()
         val bmp = capture()
         if (bmp == null) {
+            recognitionFailures++
             say("Ekran tutulmadı")
             return null
         }
@@ -764,6 +765,7 @@ class OverlayService : Service() {
             BoardReader.read(scan, t, whiteBottom, detectOrientation = !orientationKnown)
         }
         if (reading == null) {
+            recognitionFailures++
             say("Taxta oxunmadı (fiqur dəsti dəyişibsə yeni oyunun əvvəlində şablonu yenilə)")
             return null
         }
