@@ -9,7 +9,7 @@ class RookSacrificeDetectorTest {
     fun detectsWhiteRookOfferedAndCapturedOnOpponentsNextMove() {
         val beforeOffer = "4k3/8/8/8/1n6/8/8/R3K3"
         val offered = "4k3/8/8/8/1n6/8/R7/4K3"
-        val captured = "4k3/8/8/8/1n6/8/n7/4K3"
+        val captured = "4k3/8/8/8/8/8/n7/4K3"
         assertTrue(RookSacrificeDetector.wasRookSacrificed(beforeOffer, offered, captured, 'b'))
     }
 
