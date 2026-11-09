@@ -27,11 +27,14 @@ object ChessNotation {
     }.getOrNull()
 
     fun sanWithMoveNumber(fen: String, uci: String): String? = runCatching {
-        require(sanFor(fen, uci) != null) { "Gediş qanuni deyil" }
-        val board = Board().apply { loadFromFen(fen) }
-        val move = Move(uci, board.getSideToMove())
-        val list = MoveList(fen)
-        list.add(move)
-        list.toSanWithMoveNumbers()
+        val san = sanFor(fen, uci) ?: throw IllegalArgumentException("Gediş qanuni deyil")
+        val fields = fen.trim().split(Regex("\\s+"))
+        val side = fields.getOrNull(1) ?: throw IllegalArgumentException("FEN növbə sahəsi yoxdur")
+        val moveNumber = fields.getOrNull(5)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        when (side) {
+            "w" -> "$moveNumber. $san"
+            "b" -> "$moveNumber... $san"
+            else -> throw IllegalArgumentException("FEN növbəsi yanlışdır")
+        }
     }.getOrNull()
 }
