@@ -66,6 +66,11 @@ class OverlayService : Service() {
     private var analysisTimeSeconds = 3
     private var targetElo = 2000
     private var maxEngineStrength = false
+    @Volatile private var autoRunning = false
+    private var lastAnalyzedPlacement: String? = null
+    private var lastRecognitionMs = 0L
+    private var lastEngineMs = 0L
+    private var lastConfidence = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -195,7 +200,8 @@ class OverlayService : Service() {
             })
         }
 
-        btn("Başlat") { if (!busy) scope.launch { guarded { analyze() } } }
+        btn("Avtomatik başlat") { startAutomaticAnalysis() }
+        btn("Dayandır") { autoRunning = false; say("Avtomatik analiz dayandırıldı") }
         btn("Yoxla") { if (!busy) scope.launch { guarded { inspect() } } }
         btn("Şablonu yenilə") { if (!busy) scope.launch { guarded { calibrate() } } }
         val timeButton = Button(this).apply {
@@ -242,6 +248,11 @@ class OverlayService : Service() {
             }
         }
         p.addView(maxButton)
+        btn("Tarixçə (son 100)") { showHistory() }
+        btn("PGN ixrac et") { shareExport(SessionStore.toPgn(this), "application/x-chess-pgn") }
+        btn("UCI ixrac et") { shareExport(SessionStore.toUci(this), "text/plain") }
+        btn("Performans") { showPerformance() }
+        btn("Mövzu: dəyiş") { cycleTheme(p) }
         btn("Bağla") { stopSelf() }
 
         val lp = WindowManager.LayoutParams(
@@ -330,6 +341,70 @@ class OverlayService : Service() {
         status?.text = s
     }
 
+    private fun startAutomaticAnalysis() {
+        if (autoRunning) return
+        autoRunning = true
+        lastAnalyzedPlacement = null
+        say("Avtomatik tanıma başladıldı")
+        scope.launch {
+            while (autoRunning) {
+                if (!busy) {
+                    try {
+                        busy = true
+                        analyzeOnce()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        say("Xəta: ${e.message ?: e.javaClass.simpleName}")
+                    } finally {
+                        busy = false
+                    }
+                }
+                delay(900)
+            }
+        }
+    }
+
+    private fun cycleTheme(target: LinearLayout) {
+        val prefs = getSharedPreferences("chess", MODE_PRIVATE)
+        val themes = listOf("dark", "midnight", "amoled")
+        val current = prefs.getString("theme", "dark") ?: "dark"
+        val next = themes[(themes.indexOf(current).coerceAtLeast(0) + 1) % themes.size]
+        prefs.edit().putString("theme", next).apply()
+        val bg = when (next) {
+            "midnight" -> Color.rgb(10, 22, 48)
+            "amoled" -> Color.BLACK
+            else -> Color.rgb(20, 20, 20)
+        }
+        (target.background as? GradientDrawable)?.setColor(Color.argb(225, Color.red(bg), Color.green(bg), Color.blue(bg)))
+        say("Mövzu: ${when (next) { "midnight" -> "Midnight Blue"; "amoled" -> "AMOLED"; else -> "Dark" }}")
+    }
+
+    private fun showHistory() {
+        val items = SessionStore.read(this).takeLast(20).asReversed()
+        val message = if (items.isEmpty()) "Hələ tarixçə yoxdur" else items.mapIndexed { i, item ->
+            "${i + 1}. ${item.uci} · ${item.confidence}% · ${item.engineMs} ms"
+        }.joinToString("\n")
+        AlertDialog.Builder(this).setTitle("Son gedişlər").setMessage(message)
+            .setPositiveButton("Bağla", null).show()
+    }
+
+    private fun showPerformance() {
+        AlertDialog.Builder(this).setTitle("Performance Monitor")
+            .setMessage("Tanınma: ${lastRecognitionMs} ms\nStockfish: ${lastEngineMs} ms\nConfidence: ${lastConfidence}%\nTarixçə: ${SessionStore.read(this).size}/100\nAnaliz: ${analysisTimeSeconds} s\nMühərrik: ${if (maxEngineStrength) "Maksimum" else targetElo}")
+            .setPositiveButton("Bağla", null).show()
+    }
+
+    private fun shareExport(content: String, mime: String) {
+        if (content.isBlank()) return say("İxrac üçün tarixçə boşdur")
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(Intent.EXTRA_TEXT, content)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(Intent.createChooser(send, "ChessHelper ixracı").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     /** Eyni anda yalnız bir əməliyyat; gözlənilməz xəta servisi çökdürmür. */
     private inline fun guarded(block: () -> Unit) {
         busy = true
@@ -411,10 +486,11 @@ class OverlayService : Service() {
         say(if (r.whiteBottom) "Hazır: ağ aşağıda" else "Hazır: qara aşağıda")
     }
 
-    private class Snap(val board: BoardRect, val reading: Reading)
+    private class Snap(val board: BoardRect, val reading: Reading, val recognitionMs: Long)
 
     /** Ekranı tutur, taxtanı tapır və oxuyur. Oyunun əvvəlindəyiksə şablonlar avtomatik öyrənilir. */
     private suspend fun snapshot(): Snap? {
+        val recognitionStarted = SystemClock.elapsedRealtime()
         val bmp = capture()
         if (bmp == null) {
             say("Ekran tutulmadı")
@@ -448,7 +524,9 @@ class OverlayService : Service() {
         val pieces = reading.placement.count { it.isLetter() }
         if (fresh == null && pieces > lastPieces) castlingKnown = false
         lastPieces = pieces
-        return Snap(board, reading)
+        lastRecognitionMs = SystemClock.elapsedRealtime() - recognitionStarted
+        lastConfidence = (((64 - reading.weak.size).coerceAtLeast(0) / 64f) * 100f).toInt()
+        return Snap(board, reading, lastRecognitionMs)
     }
 
     /** Oxunmuş taxtanı ekranın üstündə göstərir ki, tanımanın düzgünlüyü yoxlanılsın. */
@@ -460,12 +538,18 @@ class OverlayService : Service() {
         say(if (n == 0) "Hamısı oxundu" else "$n xana şübhəlidir (qırmızı çərçivə)")
     }
 
-    private suspend fun analyze() {
+    private suspend fun analyze() = analyzeOnce()
+
+    private suspend fun analyzeOnce() {
         say("Oxuyuram…")
         val eng = engine ?: return say("Motor hazır deyil")
         val snap = snapshot() ?: return
         val board = snap.board
         val reading = snap.reading
+        if (autoRunning && lastAnalyzedPlacement == reading.placement) {
+            say("Mövqe dəyişməyib · Confidence: ${lastConfidence}%")
+            return
+        }
 
         val castField = if (castlingKnown) {
             castling = BoardReader.updateCastling(reading.placement, castling)
@@ -476,6 +560,7 @@ class OverlayService : Service() {
         val stm = reading.sideToMove ?: (if (whiteBottom) 'w' else 'b')
         val fen = "${reading.placement} $stm $castField ${reading.enPassant} 0 1"
 
+        val engineStarted = SystemClock.elapsedRealtime()
         val move = withContext(Dispatchers.IO) {
             try {
                 eng.configureStrength(targetElo, maxEngineStrength)
@@ -485,6 +570,9 @@ class OverlayService : Service() {
             }
         } ?: return say("Gediş tapılmadı")
 
+        lastEngineMs = SystemClock.elapsedRealtime() - engineStarted
+        lastAnalyzedPlacement = reading.placement
+        SessionStore.append(this, MoveRecord(fen, move, System.currentTimeMillis(), lastConfidence, snap.recognitionMs, lastEngineMs))
         val from = move.substring(0, 2)
         val to = move.substring(2, 4)
         val n = reading.weak.size
