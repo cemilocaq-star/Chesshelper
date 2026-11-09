@@ -852,6 +852,9 @@ class OverlayService : Service() {
     private suspend fun analyzeOnce() {
         say("Oxuyuram…")
         val eng = engine ?: return say("Motor hazır deyil")
+        // A previous stop request is scoped to the previous analysis. Clear it before
+        // starting a new snapshot/engine cycle so a fresh Start works after Stop.
+        eng.resetCancellation()
         val snap = snapshot() ?: return
         val board = snap.board
         val reading = snap.reading
