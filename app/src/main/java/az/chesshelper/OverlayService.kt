@@ -60,6 +60,8 @@ class OverlayService : Service() {
     private var lastBoard: BoardRect? = null
     private var lastPieces = 0
     private var busy = false
+    private var analysisTimeSeconds = 3
+    private var targetElo = 2000
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -128,6 +130,8 @@ class OverlayService : Service() {
         templates = getSharedPreferences("chess", MODE_PRIVATE).getString("tpl2", null)
             ?.let { Templates.parse(it) }
 
+        analysisTimeSeconds = getSharedPreferences("chess", MODE_PRIVATE).getInt("analysis_time_seconds", 3).coerceIn(1, 30)
+        targetElo = getSharedPreferences("chess", MODE_PRIVATE).getInt("target_elo", 2000).coerceIn(1320, 3000)
         buildUi()
         say(if (templates != null) "≡ Hazırdır" else "≡ Yeni oyunun əvvəlində Başlat bas")
 
@@ -189,6 +193,33 @@ class OverlayService : Service() {
         btn("Başlat") { if (!busy) scope.launch { guarded { analyze() } } }
         btn("Yoxla") { if (!busy) scope.launch { guarded { inspect() } } }
         btn("Şablonu yenilə") { if (!busy) scope.launch { guarded { calibrate() } } }
+        val timeButton = Button(this).apply {
+            textSize = 12f
+            isAllCaps = false
+            minHeight = 0
+            minimumHeight = 0
+            text = "Təhlil vaxtı: ${analysisTimeSeconds}s"
+            setOnClickListener {
+                val values = listOf(1, 2, 3, 5, 10, 15, 30)
+                analysisTimeSeconds = values[(values.indexOf(analysisTimeSeconds).coerceAtLeast(0) + 1) % values.size]
+                getSharedPreferences("chess", MODE_PRIVATE).edit().putInt("analysis_time_seconds", analysisTimeSeconds).apply()
+                text = "Təhlil vaxtı: ${analysisTimeSeconds}s"
+            }
+        }
+        p.addView(timeButton)
+        val eloButton = Button(this).apply {
+            textSize = 12f
+            isAllCaps = false
+            minHeight = 0
+            minimumHeight = 0
+            text = "Mühərrik ELO-su: $targetElo"
+            setOnClickListener {
+                targetElo = if (targetElo >= 3000) 1320 else (targetElo + 100).coerceAtMost(3000)
+                getSharedPreferences("chess", MODE_PRIVATE).edit().putInt("target_elo", targetElo).apply()
+                text = "Mühərrik ELO-su: $targetElo"
+            }
+        }
+        p.addView(eloButton)
         btn("Bağla") { stopSelf() }
 
         val lp = WindowManager.LayoutParams(
@@ -381,7 +412,7 @@ class OverlayService : Service() {
 
         val move = withContext(Dispatchers.IO) {
             try {
-                eng.best(fen, 800)
+                eng.configureStrength(targetElo)\n            eng.best(fen, analysisTimeSeconds * 1000)
             } catch (e: Exception) {
                 null
             }
