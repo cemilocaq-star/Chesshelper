@@ -229,13 +229,17 @@ class ArrowView(c: Context) : View(c) {
         boardGuide.strokeWidth = (sqs * 0.018f).coerceAtLeast(1.2f)
         // Show the detected 8x8 geometry so every square can be checked against the
         // original board, not only the recognized piece silhouettes.
+        val left = r.x.toFloat()
+        val top = r.y.toFloat()
+        val right = left + r.size
+        val bottom = top + r.size
         for (i in 0..8) {
-            val vx = r.x + i * sqs
-            val hy = r.y + i * sqs
-            canvas.drawLine(vx, r.y, vx, r.y + r.size, boardGuide)
-            canvas.drawLine(r.x, hy, r.x + r.size, hy, boardGuide)
+            val vx = left + i * sqs
+            val hy = top + i * sqs
+            canvas.drawLine(vx, top, vx, bottom, boardGuide)
+            canvas.drawLine(left, hy, right, hy, boardGuide)
         }
-        canvas.drawRect(r.x, r.y, r.x + r.size, r.y + r.size, boardGuide)
+        canvas.drawRect(left, top, right, bottom, boardGuide)
         for (row in 0 until 8) {
             for (col in 0 until 8) {
                 val ch = grid[row][col]
