@@ -58,7 +58,7 @@ if __name__ == "__main__":
         for font in ("dejavu", "freeserif"):
             result = trial(th, font, font, seed=1)
             if result is None:
-                print(th, font, "CALIBRATION FAILED")
+                print(th, font, "CALIBRATION FAILED:", LAST_CALIBRATION_FAILURE)
                 failures.append((th, font, "calibration"))
                 continue
             ok, tot, rows = result
