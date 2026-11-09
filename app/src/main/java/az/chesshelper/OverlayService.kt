@@ -143,23 +143,38 @@ class OverlayService : Service() {
         frameThread = callbackThread
         val r = ImageReader.newInstance(dm.widthPixels, dm.heightPixels, PixelFormat.RGBA_8888, 3)
         r.setOnImageAvailableListener({ rd ->
-            val img = rd.acquireLatestImage() ?: return@setOnImageAvailableListener
+            val img = try {
+                rd.acquireLatestImage()
+            } catch (_: Exception) {
+                null
+            } ?: return@setOnImageAvailableListener
+            var ownedFrame: Bitmap? = null
             try {
+                if (destroyed) return@setOnImageAvailableListener
                 val plane = img.planes[0]
-                val rowPixels = plane.rowStride / plane.pixelStride
+                val rowPixels = (plane.rowStride + plane.pixelStride - 1) / plane.pixelStride
                 val padded = Bitmap.createBitmap(rowPixels, img.height, Bitmap.Config.ARGB_8888)
+                ownedFrame = padded
                 plane.buffer.rewind()
                 padded.copyPixelsFromBuffer(plane.buffer)
                 val frame = if (rowPixels == img.width) padded else
                     Bitmap.createBitmap(padded, 0, 0, img.width, img.height).also { padded.recycle() }
+                ownedFrame = frame
                 synchronized(frameLock) {
-                    val old = latestFrame
-                    latestFrame = frame
-                    if (old != null && old !== frame && !old.isRecycled) old.recycle()
-                    lastFrameAt = SystemClock.uptimeMillis()
+                    if (destroyed) {
+                        if (!frame.isRecycled) frame.recycle()
+                        ownedFrame = null
+                    } else {
+                        val old = latestFrame
+                        latestFrame = frame
+                        ownedFrame = null // ownership transferred to latestFrame
+                        if (old != null && old !== frame && !old.isRecycled) old.recycle()
+                        lastFrameAt = SystemClock.uptimeMillis()
+                    }
                 }
             } catch (_: Exception) {
                 // A damaged capture is ignored; the last complete frame remains available.
+                ownedFrame?.let { if (!it.isRecycled) it.recycle() }
             } finally {
                 img.close()
             }
