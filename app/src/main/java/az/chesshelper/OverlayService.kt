@@ -287,56 +287,22 @@ class OverlayService : Service() {
         p.addView(sideButton)
         btn("Yoxla") { if (!busy) scope.launch { guarded { inspect() } } }
         btn("Şablonu yenilə") { if (!busy) scope.launch { guarded { calibrate() } } }
-        val timeButton = Button(this).apply {
-            textSize = 12f
-            isAllCaps = false
-            minHeight = 0
-            minimumHeight = 0
-            text = "Təhlil vaxtı: ${analysisTimeSeconds}s"
-            setOnClickListener { showAnalysisTimeDialog(this) }
+        btn("Daha çox") {
+            val options = arrayOf("Analiz tarixçəsi", "PGN tövsiyə ixracı", "UCI ixracı", "Performans", "Bağla")
+            AlertDialog.Builder(this)
+                .setTitle("Əlavə funksiyalar")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> showHistory()
+                        1 -> shareExport(SessionStore.toPgn(this), "application/x-chess-pgn")
+                        2 -> shareExport(SessionStore.toUci(this), "text/plain")
+                        3 -> showPerformance()
+                        4 -> stopSelf()
+                    }
+                }
+                .show()
         }
-        p.addView(timeButton)
-        val eloButton = Button(this).apply {
-            textSize = 12f
-            isAllCaps = false
-            minHeight = 0
-            minimumHeight = 0
-            text = "Mühərrik ELO-su: ${if (maxEngineStrength) "Maksimum" else targetElo}"
-            setOnClickListener {
-                maxEngineStrength = false
-                targetElo = if (targetElo >= 3000) 1320 else (targetElo + 20).coerceAtMost(3000)
-                getSharedPreferences("chess", MODE_PRIVATE).edit()
-                    .putInt("target_elo", targetElo)
-                    .putBoolean("max_engine_strength", false)
-                    .apply()
-                text = "Mühərrik ELO-su: $targetElo"
-                say("Mühərrik hədəfi: $targetElo ELO")
-            }
-        }
-        p.addView(eloButton)
-        val maxButton = Button(this).apply {
-            textSize = 12f
-            isAllCaps = false
-            minHeight = 0
-            minimumHeight = 0
-            text = if (maxEngineStrength) "Maksimum güc: Aktiv" else "Maksimum gücü seç"
-            setOnClickListener {
-                maxEngineStrength = !maxEngineStrength
-                getSharedPreferences("chess", MODE_PRIVATE).edit()
-                    .putBoolean("max_engine_strength", maxEngineStrength)
-                    .apply()
-                text = if (maxEngineStrength) "Maksimum güc: Aktiv" else "Maksimum gücü seç"
-                eloButton.text = "Mühərrik ELO-su: ${if (maxEngineStrength) "Maksimum" else targetElo}"
-                say(if (maxEngineStrength) "Mühərrik maksimum gücdə işləyəcək" else "ELO məhdudiyyəti aktivdir")
-            }
-        }
-        p.addView(maxButton)
-        btn("Analiz tarixçəsi (son 100)") { showHistory() }
-        btn("PGN tövsiyə ixracı") { shareExport(SessionStore.toPgn(this), "application/x-chess-pgn") }
-        btn("UCI ixrac et") { shareExport(SessionStore.toUci(this), "text/plain") }
-        btn("Performans") { showPerformance() }
-        btn("Mövzu: dəyiş") { cycleTheme(p) }
-        btn("Bağla") { stopSelf() }
+
 
         val scroll = ScrollView(this).apply {
             isFillViewport = false
@@ -348,17 +314,17 @@ class OverlayService : Service() {
         }
         applyPanelTheme(p)
 
-        panelExpandedHeight = (resources.displayMetrics.heightPixels * 0.68f).toInt()
+        panelExpandedHeight = (resources.displayMetrics.heightPixels * 0.46f).toInt()
         val lp = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            (220 * dp).toInt(),
             panelExpandedHeight,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = (120 * dp).toInt()
+            gravity = Gravity.TOP or Gravity.END
+            x = (8 * dp).toInt()
+            y = (90 * dp).toInt()
         }
 
         // yazıdan tutub sürüşdürmək
