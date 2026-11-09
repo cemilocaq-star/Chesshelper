@@ -39,6 +39,7 @@ import android.widget.TextView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -79,6 +80,8 @@ class OverlayService : Service() {
     private var targetElo = 2000
     private var maxEngineStrength = false
     @Volatile private var autoRunning = false
+    private var autoJob: Job? = null
+    private var autoGeneration = 0
     private var stableFrameCount = 0
     private var lastRecognitionMs = 0L
     private var lastEngineMs = 0L
@@ -281,8 +284,11 @@ class OverlayService : Service() {
         }
 
         btn("Avtomatik başlat") { startAutomaticAnalysis() }
-        btn("Dayandır") { autoRunning = false; say("Avtomatik analiz dayandırıldı") }
-        btn("Yeni oyun") { resetGameSession() }
+        btn("Dayandır") { stopAutomaticAnalysis() }
+        btn("Yeni oyun") {
+            if (busy) say("Cari analiz bitdikdən sonra yeni oyun rejimini seç")
+            else resetGameSession()
+        }
         val sideButton = Button(this).apply {
             textSize = 12f
             isAllCaps = false
@@ -524,8 +530,16 @@ class OverlayService : Service() {
         button.text = "Növbə: ${when (sideOverride) { 'w' -> "Ağ"; 'b' -> "Qara"; else -> "Avtomatik" }}"
     }
 
-    private fun resetGameSession() {
+    private fun stopAutomaticAnalysis() {
         autoRunning = false
+        autoGeneration++
+        autoJob?.cancel()
+        autoJob = null
+        say("Avtomatik analiz dayandırıldı")
+    }
+
+    private fun resetGameSession() {
+        stopAutomaticAnalysis()
         previousPlacement = null
         castling = "-"
         castlingKnown = false
@@ -541,14 +555,16 @@ class OverlayService : Service() {
     }
 
     private fun startAutomaticAnalysis() {
-        if (autoRunning) return
+        if (autoJob?.isActive == true) return
+        autoGeneration++
+        val myGeneration = autoGeneration
         autoRunning = true
         lastAnalyzedPositionKey = null
         candidatePositionKey = null
         stableFrameCount = 0
         say("Avtomatik tanıma başladıldı")
-        scope.launch {
-            while (autoRunning) {
+        autoJob = scope.launch {
+            while (autoRunning && myGeneration == autoGeneration) {
                 if (!busy) {
                     try {
                         busy = true
@@ -562,25 +578,6 @@ class OverlayService : Service() {
                     }
                 }
                 delay(900)
-            }
-        }
-    }
-
-    private fun applyPanelTheme(target: LinearLayout) {
-        val key = getSharedPreferences("chess", MODE_PRIVATE).getString("theme", "dark")
-        val (backgroundColor, buttonColor) = when (key) {
-            "midnight" -> Color.rgb(10, 22, 48) to Color.rgb(24, 48, 82)
-            "amoled" -> Color.BLACK to Color.rgb(25, 25, 25)
-            else -> Color.rgb(20, 20, 20) to Color.rgb(45, 52, 60)
-        }
-        (target.background as? GradientDrawable)?.setColor(Color.argb(
-            230, Color.red(backgroundColor), Color.green(backgroundColor), Color.blue(backgroundColor)
-        ))
-        for (i in 0 until target.childCount) {
-            val child = target.getChildAt(i)
-            if (child is Button) {
-                child.backgroundTintList = ColorStateList.valueOf(buttonColor)
-                child.setTextColor(Color.WHITE)
             }
         }
     }
@@ -875,6 +872,9 @@ class OverlayService : Service() {
     override fun onDestroy() {
         destroyed = true
         autoRunning = false
+        autoGeneration++
+        autoJob?.cancel()
+        autoJob = null
         scope.cancel()
         try {
             panel?.let { wm.removeView(it) }
